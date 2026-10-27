@@ -1,0 +1,1892 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>DTA Plan Builder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:wght@500;600&display=swap">
+<style>
+/* Layout as in ProjectOctober.Client: navy section sidebar (from 1024px) and a white top bar; then degree progress |
+   quarter board in academic-year rows | course catalog (a column from 1640px, a drawer otherwise).
+   Colours are the Meridian tokens from ProjectOctober.Client/Styles/app.css. The app is light only, so this page is too. */
+:root {
+  color-scheme: light;
+  --canvas: #F2F5FA; --panel: #FFFFFF; --tint: #ECF0F6;
+  --ink: #13203A; --ink-2: #33425C; --ink-3: #4A5A76;
+  --line: #DCE3EE; --line-strong: #C3CCDB;
+  --navy: #13203A; --side-ink: #FFFFFF; --side-ink-2: rgba(255, 255, 255, 0.65); --side-line: rgba(255, 255, 255, 0.10); --side-active: rgba(255, 255, 255, 0.12);
+  --gold: #E3B55B;
+  --brand: #1C39A8; --brand-deep: #14297A; --brand-soft: #E5EBFB; --on-brand: #FFFFFF;
+  --success: #0A5E33; --success-soft: #E0F1E7;
+  --warning: #784700; --warning-soft: #FAEFD9;
+  --danger: #A01414; --danger-soft: #FBE5E5;
+  --focus: #0A5E33;
+  --planned-arc: #6F86D6;
+  --scrim: rgba(9, 15, 30, 0.45);
+  --shadow-xs: 0 1px 2px rgba(28, 43, 74, 0.06);
+  --shadow-md: 0 4px 12px rgba(28, 43, 74, 0.10);
+  --shadow-lg: 0 8px 24px rgba(28, 43, 74, 0.14);
+  --font-sans: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+h1, h2, h3 { font-family: var(--font-serif); font-weight: 500; margin: 0; text-wrap: balance; font-variant-numeric: lining-nums; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip { position: absolute; left: 16px; top: -80px; z-index: 60; background: var(--brand); color: var(--on-brand); padding: 8px 14px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+.skip:focus { top: calc(env(safe-area-inset-top, 0px) + 8px); }
+.ico { width: 16px; height: 16px; flex: none; }
+.mono { font-family: var(--font-mono); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); font-size: 14px; font-weight: 500; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { background: var(--tint); }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.btn[disabled]:hover { background: var(--panel); }
+.btn-primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.btn-primary:hover { background: var(--brand-deep); border-color: var(--brand-deep); }
+.btn-sm { min-height: 30px; padding: 3px 10px; font-size: 13px; }
+.btn-quiet { background: transparent; border-color: transparent; color: var(--brand); }
+.btn-quiet:hover { background: var(--brand-soft); }
+.btn-danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+.btn-danger:hover { background: var(--danger-soft); }
+.link-btn { background: none; border: 0; padding: 4px 2px; color: var(--brand); font-size: 13px; font-weight: 500; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { color: var(--brand-deep); }
+
+/* Navy section sidebar, as MainLayout.razor */
+.side { display: none; }
+@media (min-width: 1024px) {
+  .side { position: fixed; inset: 0 auto 0 0; z-index: 30; width: 240px; display: flex; flex-direction: column; background: var(--navy); color: var(--side-ink); padding-top: env(safe-area-inset-top, 0px); padding-left: env(safe-area-inset-left, 0px); overflow-y: auto; }
+  .shell { padding-left: calc(240px + env(safe-area-inset-left, 0px)); }
+}
+.side-brand { height: 64px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 1px solid var(--side-line); }
+.side-brand .wordmark { color: var(--side-ink); }
+.side-brand svg { color: var(--gold); }
+.side-nav { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; }
+.side-label { margin: 0 0 4px; padding: 0 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--side-ink-2); }
+.side-link { position: relative; display: flex; align-items: center; min-height: 40px; padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--side-ink); background: var(--side-active); text-decoration: none; }
+.side-link::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 16px; transform: translateY(-50%); border-radius: 0 2px 2px 0; background: var(--gold); }
+.side-foot { flex: none; padding: 16px; border-top: 1px solid var(--side-line); font-size: 12px; color: var(--side-ink-2); }
+.side-foot strong { display: block; font-size: 13.5px; font-weight: 500; color: rgba(255, 255, 255, 0.8); }
+.side :focus-visible { outline-color: var(--gold); }
+
+/* Top bar */
+.topbar { background: var(--panel); color: var(--ink); border-bottom: 1px solid var(--line); min-height: 64px; display: flex; align-items: center; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.topbar-inner { width: 100%; max-width: 1680px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.wordmark { font-family: var(--font-serif); font-size: 18px; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); }
+.brand svg { color: var(--brand); flex: none; }
+@media (min-width: 1024px) { .topbar .brand { display: none; } }
+.pill { border: 1px solid var(--brand); color: var(--brand); border-radius: 999px; padding: 1px 9px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+.demo-note { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; color: var(--ink-3); }
+@media (max-width: 760px) { .demo-note span:last-child { display: none; } }
+.top-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Page layout */
+.layout { max-width: 1680px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; padding-block: 20px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (min-width: 900px) { .layout { grid-template-columns: 300px minmax(0, 1fr); } }
+@media (min-width: 1640px) { .layout { grid-template-columns: 300px minmax(0, 1fr) 360px; } }
+.summary { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+@media (min-width: 900px) { .summary { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; padding-bottom: 4px; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+
+/* Progress ring */
+.ring-row { display: flex; align-items: center; gap: 16px; }
+.ring { width: 108px; height: 108px; flex: none; }
+.ring .track { stroke: var(--tint); }
+.ring .fill { stroke: var(--planned-arc); transition: stroke-dashoffset 0.6s ease; }
+.ring .done { stroke: var(--success); transition: stroke-dashoffset 0.6s ease; }
+.ring-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 0; font-size: 12.5px; color: var(--ink-2); }
+.ring-legend strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+.swatch.done { background: var(--success); }
+.swatch.planned { background: var(--planned-arc); }
+.ring-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ring-num { font-family: var(--font-serif); font-size: 30px; line-height: 1; font-variant-numeric: lining-nums tabular-nums; }
+.ring-of { color: var(--ink-2); font-size: 13.5px; }
+.stat-list { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 14px 0 0; font-size: 13.5px; }
+.stat-list dt { color: var(--ink-2); }
+.stat-list dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.finish { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--tint); }
+.finish-val { font-family: var(--font-serif); font-size: 19px; font-variant-numeric: lining-nums; }
+.finish-sub { font-size: 13px; color: var(--ink-2); }
+.finish.changed { animation: finishflash 1.4s ease-out; }
+@keyframes finishflash { 0% { box-shadow: 0 0 0 3px var(--brand); } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* Requirements */
+.reqs { list-style: none; margin: 8px 0 0; padding: 0; }
+.req { border-top: 1px solid var(--line); }
+.req:first-child { border-top: 0; }
+.req-head { width: 100%; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 10px 2px; background: none; border: 0; text-align: left; cursor: pointer; border-radius: 6px; }
+.req-head:hover { background: var(--tint); }
+.req-name { font-weight: 600; font-size: 14px; }
+.req-prog { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.req-icon { color: var(--ink-3); display: grid; place-items: center; }
+.req[data-state="met"] .req-icon { color: var(--success); }
+.req[data-state="met"] .req-prog { color: var(--success); font-weight: 600; }
+.req[data-state="partial"] .req-icon { color: var(--brand); }
+.req[data-state="planned"] .req-icon { color: var(--brand); }
+.req[data-state="planned"] .req-prog { color: var(--brand); font-weight: 600; }
+.req[data-state="planned"] .req-bar > span { background: var(--planned-arc); }
+.req-bar { grid-column: 2 / 4; height: 4px; border-radius: 2px; background: var(--tint); overflow: hidden; }
+.req-bar > span { display: block; height: 100%; width: 0; background: var(--brand); border-radius: 2px; transition: width 0.45s ease; }
+.req[data-state="met"] .req-bar > span { background: var(--success); }
+.req-body { padding: 0 2px 12px 32px; font-size: 13px; color: var(--ink-2); display: flex; flex-direction: column; gap: 8px; }
+.req-body ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.req-body li { display: flex; gap: 6px; align-items: baseline; }
+.req-body li .mono { font-size: 12.5px; color: var(--ink); }
+.ok-dot { color: var(--success); font-weight: 700; }
+.no-dot { color: var(--ink-3); }
+
+/* Things to check */
+.checks { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.check-item { width: 100%; text-align: left; display: flex; gap: 8px; align-items: flex-start; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 13px; }
+.check-item:hover { background: var(--tint); }
+.check-item.blocked { color: var(--danger); }
+.check-item.review { color: var(--warning); }
+.check-item .ci-text { color: var(--ink); }
+.muted { color: var(--ink-3); font-size: 13px; }
+
+/* Board */
+.board { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.plan-head { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between; }
+.plan-title { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.plan-title h1 { font-size: clamp(23px, 2.3vw, 30px); line-height: 1.15; }
+.plan-sub { color: var(--ink-2); font-size: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); font-weight: 500; }
+select, input[type="search"], textarea { font: inherit; font-size: 14px; color: var(--ink); background: var(--panel); border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 10px; min-height: 36px; max-width: 100%; }
+textarea { width: 100%; min-height: 72px; resize: vertical; }
+.empty { border: 1px dashed var(--line-strong); border-radius: 12px; padding: 18px; background: var(--panel); display: flex; flex-direction: column; gap: 12px; }
+.empty h2 { font-size: 20px; }
+.empty p { color: var(--ink-2); max-width: 62ch; }
+.empty-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.year { display: flex; flex-direction: column; gap: 10px; }
+.year-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.year-label { font-size: 17px; }
+.year-span { color: var(--ink-3); font-size: 13px; font-family: var(--font-sans); }
+.year-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); align-items: start; }
+@media (max-width: 640px) { .year-grid { grid-template-columns: minmax(0, 1fr); } }
+.term { position: relative; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.term.drop { outline: 2px dashed var(--brand); outline-offset: 2px; background: var(--brand-soft); }
+.drop-hint { display: none; position: absolute; top: -11px; right: 12px; background: var(--brand); color: var(--on-brand); font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+.term.drop .drop-hint { display: block; }
+.term-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.term-head h3 { font-size: 17px; }
+.term-cr { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.term-cr.heavy { color: var(--warning); font-weight: 600; }
+.load { height: 4px; border-radius: 2px; background: var(--tint); overflow: hidden; margin-top: -4px; }
+.load > span { display: block; height: 100%; background: var(--brand); border-radius: 2px; transition: width 0.35s ease; }
+.load.heavy > span { background: var(--warning); }
+.term-warn { font-size: 12.5px; color: var(--warning); display: flex; gap: 6px; align-items: flex-start; }
+.tiles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tile { position: relative; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-xs); }
+.tile[draggable="true"] { cursor: grab; }
+.tile.dragging { opacity: 0.45; }
+.tile.is-new { animation: tileflash 1.8s ease-out; }
+@keyframes tileflash { 0% { box-shadow: 0 0 0 3px var(--brand); background: var(--brand-soft); } 100% { box-shadow: var(--shadow-xs); background: var(--panel); } }
+.tile-main { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 10px 11px; cursor: pointer; border-radius: 10px; }
+.tile-main:hover { background: var(--tint); }
+.tile-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.code { font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: var(--ink); white-space: nowrap; }
+.cr { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.t-title { display: block; font-size: 14px; line-height: 1.35; margin-top: 2px; color: var(--ink); }
+.uses { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 6px; }
+.uses.none { color: var(--warning); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip { font-family: var(--font-mono); font-size: 11px; font-weight: 500; border-radius: 5px; padding: 0 6px; line-height: 18px; background: var(--tint); color: var(--ink-2); border: 1px solid var(--line); }
+.chip.spec { background: var(--success-soft); color: var(--success); border-color: transparent; }
+.status { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; margin-top: 8px; padding: 6px 8px; border-radius: 7px; }
+.status.ok { color: var(--success); background: var(--success-soft); }
+.status.review { color: var(--warning); background: var(--warning-soft); }
+.status.blocked { color: var(--danger); background: var(--danger-soft); }
+.status .ico { margin-top: 1px; }
+.cr-pick { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+.tile-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: -2px 11px 10px; }
+.done-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; min-height: 28px; }
+.done-pick input { width: 16px; height: 16px; margin: 0; accent-color: var(--success); }
+.tile.is-done { border-color: var(--success); }
+.done-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--success); }
+.done-badge .ico { width: 14px; height: 14px; }
+.cr-pick select { min-height: 30px; padding: 2px 8px; font-size: 13px; }
+.dlg-sec .cr-pick { margin: 6px 0 0; font-size: 13.5px; }
+.fix { margin: 0 11px 10px; white-space: normal; text-align: left; justify-content: flex-start; max-width: calc(100% - 22px); line-height: 1.3; padding-block: 5px; }
+.term-actions { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.btn-add { border-style: dashed; color: var(--brand); background: transparent; flex: 1 1 auto; }
+.btn-add:hover { background: var(--brand-soft); }
+.board-foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.about { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px 16px; }
+.about summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+.about-body { padding: 0 0 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; color: var(--ink-2); max-width: 76ch; }
+.about-body ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 14px; }
+.legend span { display: flex; gap: 8px; align-items: center; }
+
+/* Catalog */
+.catalog { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+@media (min-width: 1640px) { .catalog { position: sticky; top: 16px; max-height: calc(100vh - 32px); } .cat-close { display: none; } }
+@media (max-width: 1639px) {
+  .catalog { position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: min(420px, 100%); border-radius: 0; border-width: 0 0 0 1px; transform: translateX(105%); visibility: hidden; transition: transform 0.22s ease, visibility 0.22s; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px); }
+  .catalog.open { transform: none; visibility: visible; box-shadow: var(--shadow-lg); }
+}
+.scrim { position: fixed; inset: 0; z-index: 35; background: var(--scrim); }
+.cat-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.cat-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cat-title-row h2 { font-size: 20px; }
+.cat-target { display: flex; flex-direction: column; gap: 4px; }
+.cat-target-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cat-target select { flex: 1 1 140px; }
+.cat-load { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cat-full { font-size: 12.5px; color: var(--ink-2); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#cat-search { width: 100%; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter { border: 1px solid var(--line-strong); background: var(--panel); border-radius: 999px; padding: 2px 10px; font-size: 12.5px; cursor: pointer; min-height: 28px; }
+.filter:hover { background: var(--tint); }
+.filter[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.cat-count { font-size: 12.5px; color: var(--ink-3); }
+.cat-list { list-style: none; margin: 0; padding: 6px 8px 16px; overflow: auto; flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
+.crow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 9px 8px; border-radius: 9px; border: 1px solid transparent; }
+.crow:hover { background: var(--tint); }
+.crow[draggable="true"] { cursor: grab; }
+.crow-info { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; min-width: 0; }
+.crow-info:hover .crow-title { text-decoration: underline; text-underline-offset: 3px; }
+.crow-top { display: flex; gap: 10px; align-items: baseline; }
+.crow-title { display: block; font-size: 14px; line-height: 1.35; color: var(--ink); }
+.crow-meta { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+.crow-help { display: block; font-size: 12.5px; color: var(--success); margin-top: 3px; font-weight: 500; }
+.cat-empty { padding: 20px 12px; color: var(--ink-2); font-size: 14px; }
+
+/* Dialog */
+dialog { border: 0; border-radius: 14px; padding: 0; width: min(580px, calc(100% - 32px)); max-height: calc(100% - 32px); background: var(--panel); color: var(--ink); box-shadow: var(--shadow-lg); }
+dialog::backdrop { background: var(--scrim); }
+.dlg { display: flex; flex-direction: column; }
+.dlg-head { padding: 18px 20px 12px; display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--line); }
+.dlg-head h2 { font-size: 22px; line-height: 1.2; margin-top: 2px; }
+.dlg-body { padding: 14px 20px 6px; display: flex; flex-direction: column; gap: 16px; }
+.dlg-sec { display: flex; flex-direction: column; gap: 6px; }
+.dlg-sec h3 { font-family: var(--font-sans); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.dlg-sec ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.dlg-sec li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.dlg-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dlg-foot { padding: 12px 20px 18px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; border-top: 1px solid var(--line); margin-top: 10px; }
+.icon-btn { background: none; border: 1px solid transparent; border-radius: 8px; width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer; color: var(--ink-2); flex: none; }
+.icon-btn:hover { background: var(--tint); }
+.opt-label { font-size: 12.5px; color: var(--ink-3); font-weight: 600; }
+.advisory { font-size: 13px; color: var(--ink-2); background: var(--tint); border-radius: 8px; padding: 8px 10px; }
+
+/* Toasts */
+.toasts { position: fixed; z-index: 70; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; align-items: flex-end; max-width: calc(100% - 32px); pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; background: var(--ink); color: var(--panel); border-radius: 10px; padding: 9px 10px 9px 14px; box-shadow: var(--shadow-lg); font-size: 14px; max-width: 420px; animation: toastin 0.25s ease-out; }
+.toast button { background: none; border: 0; color: var(--panel); cursor: pointer; font-weight: 600; padding: 4px 6px; border-radius: 6px; }
+.toast .toast-act { text-decoration: underline; text-underline-offset: 3px; }
+.toast :focus-visible { outline-color: var(--panel); }
+@keyframes toastin { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Plan / audit views */
+.view-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.view-tab { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; padding: 8px 14px; font-size: 14.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.view-tab:hover { color: var(--ink); }
+.view-tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); }
+.audit { display: flex; flex-direction: column; gap: 16px; }
+.audit-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 16px; }
+.audit-head h2 { font-size: 22px; }
+.audit-meta { color: var(--ink-2); font-size: 13.5px; }
+.audit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.audit-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; list-style: none; margin: 0; padding: 0; }
+.audit-sum li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.audit-sum .v { font-family: var(--font-serif); font-size: 22px; font-variant-numeric: lining-nums tabular-nums; }
+.audit-sum .l { font-size: 12.5px; color: var(--ink-2); }
+.audit-group > h3 { font-size: 17px; margin: 4px 0 8px; }
+.areq { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.areq-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; }
+.areq-head h4 { font-family: var(--font-sans); font-size: 15px; font-weight: 700; margin: 0; }
+.apill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 700; border: 1px solid; white-space: nowrap; }
+.apill .ico { width: 14px; height: 14px; }
+.apill.done { background: var(--success); border-color: var(--success); color: #FFFFFF; }
+.apill.planned { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+.apill.short { background: var(--warning-soft); border-color: var(--warning); color: var(--warning); }
+.areq-rule { font-size: 13px; color: var(--ink-2); max-width: 72ch; }
+.areq-cr { font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.achecks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.achecks li { display: flex; gap: 8px; align-items: baseline; }
+.achecks .no { color: var(--warning); }
+.atable-wrap { overflow-x: auto; }
+.atable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.atable th { text-align: left; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); border-bottom: 1px solid var(--line-strong); padding: 4px 8px; }
+.atable td { border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+.atable .s-done { color: var(--success); font-weight: 600; white-space: nowrap; }
+.atable .s-planned { color: var(--ink-2); white-space: nowrap; }
+.anote { display: block; color: var(--ink-2); font-size: 12.5px; }
+.anote.warn { color: var(--warning); }
+.audit-empty { color: var(--ink-2); font-size: 13.5px; }
+.audit-copy { display: flex; flex-direction: column; gap: 6px; }
+#audit-text { width: 100%; min-height: 180px; font-family: var(--font-mono); font-size: 12px; }
+.print-only { display: none; }
+@media (max-width: 640px) {
+  .atable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .atable, .atable tbody, .atable tr, .atable td { display: block; }
+  .atable tr { border-bottom: 1px solid var(--line); padding: 6px 0; }
+  .atable td { border: 0; padding: 1px 0; }
+  .atable td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; color: var(--ink-3); }
+}
+@media print {
+  @page { margin: 0.5in; }
+  body { background: #FFFFFF; }
+  body::before, .side, .topbar, .summary, .catalog, .scrim, .toasts, .view-tabs, .plan-head, #terms, .about, .audit-actions, .audit-copy, .skip { display: none !important; }
+  .shell { padding-left: 0 !important; }
+  .layout { display: block !important; padding: 0 !important; max-width: none; }
+  #audit-panel { display: block !important; }
+  .print-only { display: block; }
+  .print-lines { display: flex; gap: 24px; font-size: 13px; }
+  .print-lines span { flex: 1; border-bottom: 1px solid #000; padding-bottom: 14px; }
+  .areq { break-inside: avoid; border-color: #999999; }
+  .audit-group > h3 { break-after: avoid; page-break-after: avoid; }
+  .apill { background: #FFFFFF !important; color: #000000 !important; border-color: #000000 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .tile.is-new { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .finish.changed { outline: 2px solid var(--brand); }
+}
+</style>
+
+<a class="skip" href="#board">Skip to the plan</a>
+<aside class="side" aria-label="Sections">
+  <div class="side-brand"><svg width="24" height="24" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.9"/><circle cx="5" cy="8" r="2" fill="currentColor" opacity="0.6"/><circle cx="19" cy="8" r="2" fill="currentColor" opacity="0.6"/><circle cx="5" cy="16" r="2" fill="currentColor" opacity="0.6"/><circle cx="19" cy="16" r="2" fill="currentColor" opacity="0.6"/><line x1="9" y1="10.5" x2="7" y2="9" stroke="currentColor" stroke-width="1.25" opacity="0.5"/><line x1="15" y1="10.5" x2="17" y2="9" stroke="currentColor" stroke-width="1.25" opacity="0.5"/><line x1="9" y1="13.5" x2="7" y2="15" stroke="currentColor" stroke-width="1.25" opacity="0.5"/><line x1="15" y1="13.5" x2="17" y2="15" stroke="currentColor" stroke-width="1.25" opacity="0.5"/></svg><span class="wordmark">October</span></div>
+  <nav class="side-nav" aria-label="Sections">
+    <p class="side-label">Demo</p>
+    <a class="side-link" href="#board" aria-current="page">DTA plan builder</a>
+  </nav>
+  <div class="side-foot"><strong>Not signed in</strong>Nothing is saved or sent.</div>
+</aside>
+<div class="shell">
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><svg width="24" height="24" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.9"/><circle cx="5" cy="8" r="2" fill="currentColor" opacity="0.6"/><circle cx="19" cy="8" r="2" fill="currentColor" opacity="0.6"/><circle cx="5" cy="16" r="2" fill="currentColor" opacity="0.6"/><circle cx="19" cy="16" r="2" fill="currentColor" opacity="0.6"/><line x1="9" y1="10.5" x2="7" y2="9" stroke="currentColor" stroke-width="1.25" opacity="0.5"/><line x1="15" y1="10.5" x2="17" y2="9" stroke="currentColor" stroke-width="1.25" opacity="0.5"/><line x1="9" y1="13.5" x2="7" y2="15" stroke="currentColor" stroke-width="1.25" opacity="0.5"/><line x1="15" y1="13.5" x2="17" y2="15" stroke="currentColor" stroke-width="1.25" opacity="0.5"/></svg><span class="wordmark">October</span></div>
+    <div class="demo-note"><span class="pill">Demo</span><span>Starts as a blank DTA plan every visit. Nothing is saved, and no student records are used.</span></div>
+    <div class="top-actions">
+      <button class="btn" id="btn-undo" data-action="undo" disabled>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>
+        Undo
+      </button>
+      <button class="btn" data-action="sample">Fill a sample plan</button>
+      <button class="btn" data-action="reset">Start over</button>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="summary" aria-labelledby="progress-title">
+    <section class="card" aria-labelledby="progress-title">
+      <h2 id="progress-title" class="eyebrow">Degree progress</h2>
+      <div class="ring-row" style="margin-top:10px">
+        <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="track" cx="60" cy="60" r="50" fill="none" stroke-width="12"/>
+          <circle class="fill" id="ring-fill" cx="60" cy="60" r="50" fill="none" stroke-width="12" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+          <circle class="done" id="ring-done" cx="60" cy="60" r="50" fill="none" stroke-width="12" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+        </svg>
+        <div class="ring-text">
+          <span class="ring-num num" id="ring-num">0</span>
+          <span class="ring-of" id="ring-of">of 90 credits count toward the degree</span>
+        </div>
+      </div>
+      <p class="ring-legend"><span><span class="swatch done" aria-hidden="true"></span>Completed <strong id="leg-done">0</strong></span><span><span class="swatch planned" aria-hidden="true"></span>Planned <strong id="leg-planned">0</strong></span></p>
+      <dl class="stat-list">
+        <dt>Courses in plan</dt><dd id="stat-courses">0</dd>
+        <dt>Credits in plan</dt><dd id="stat-credits">0</dd>
+        <dt>Requirements</dt><dd id="stat-reqs">0 of 8</dd>
+      </dl>
+      <div class="finish" id="finish" aria-live="off">
+        <div class="eyebrow">Estimated finish</div>
+        <div class="finish-val" id="finish-val">Spring 2028</div>
+        <div class="finish-sub" id="finish-sub"></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="req-title">
+      <div class="card-head"><h2 id="req-title" class="eyebrow">DTA requirements</h2>
+        <button class="link-btn" data-action="collapse" data-target="reqs" aria-controls="reqs" aria-expanded="true" aria-label="Hide DTA requirements">Hide</button></div>
+      <ul class="reqs" id="reqs"></ul>
+    </section>
+
+    <section class="card" aria-labelledby="check-title">
+      <h2 id="check-title" class="eyebrow">Things to check</h2>
+      <div id="checks"></div>
+    </section>
+  </aside>
+
+  <main class="board" id="board" tabindex="-1">
+    <div class="plan-head">
+      <div class="plan-title">
+        <span class="eyebrow">Blank plan · Direct Transfer Agreement</span>
+        <h1>Associate in Arts and Sciences (DTA)</h1>
+        <p class="plan-sub" id="plan-sub"></p>
+      </div>
+      <div class="controls">
+        <label class="field" for="start-term">Starts
+          <select id="start-term">
+            <option value="Fall 2026">Fall 2026</option>
+            <option value="Winter 2027">Winter 2027</option>
+            <option value="Spring 2027">Spring 2027</option>
+            <option value="Fall 2027">Fall 2027</option>
+          </select>
+        </label>
+        <label class="field" for="load">Credits a quarter
+          <select id="load">
+            <option value="15">15 credits</option>
+            <option value="12">12 credits</option>
+            <option value="10">10 credits</option>
+            <option value="5">5 credits</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" data-action="browse" data-key="browse">Browse courses</button>
+      </div>
+    </div>
+    <div class="view-tabs" role="tablist" aria-label="View">
+      <button class="view-tab" role="tab" id="tab-plan" aria-selected="true" aria-controls="terms" data-action="tab" data-tab="plan" data-key="tab:plan">Plan by quarter</button>
+      <button class="view-tab" role="tab" id="tab-audit" aria-selected="false" aria-controls="audit-panel" tabindex="-1" data-action="tab" data-tab="audit" data-key="tab:audit">Degree audit</button>
+    </div>
+    <div id="terms" role="tabpanel" aria-labelledby="tab-plan"></div>
+    <section id="audit-panel" class="audit" role="tabpanel" aria-labelledby="tab-audit" hidden></section>
+    <details class="about" id="about">
+      <summary>About this demo</summary>
+      <div class="about-body">
+        <p>The plan checks itself against the general Associate in Arts and Sciences DTA as printed in the 2025–26 Whatcom Community College catalog (pages 77–79). Course designations come from the 2026–27 catalog appendices; titles and credits from the 2026–27 degree requirement pages. It is a planning demo, not an official degree audit.</p>
+        <p><strong>What the demo leaves out.</strong></p>
+        <ul>
+          <li>410 college-level courses (100–299) with titles and credits: 208 with DTA attributes from the catalog appendix, and 202 with none listed there, which the demo counts as unlisted electives. Bachelor&#x27;s-level (300+) and pre-college (under 100) courses are left out.</li>
+          <li>Courses with a credit range, such as PHIL&amp; 115 (3–5), go into a plan at 5 credits, or the most the range allows below that. Change the number on the course's card or in its details.</li>
+          <li>Not here yet: 261 courses the appendix lists but whose titles and credits are not on file, including PE (34), HIST (29), ENGL (23), MUSC (16), HUM (12), IDS (11), FILM (10), PSYC (10), FRCH (8), DANCE (7), DRMA (7), GEOG (7), PHYS (7), GEOL (6) and others.</li>
+          <li>Tick <strong>Completed</strong> on a course to record that the student finished it. The Degree audit tab shows what is done and what is only planned. Completed courses are not checked against a transcript.</li>
+          <li>No transcript, grades, placement or transfer credit. Placement and pre-college prerequisites (such as MATH 99) show as “Check”. Minimum grades are listed but not checked.</li>
+          <li>Not modeled: the six-credit HUM/IDS exception, independent-study caps, the PE activity cap, residency, GPA, S-grade and prior-learning limits, and when courses are offered or have seats.</li>
+          <li>When a course could count in more than one place, the demo tries each choice and keeps the one that meets the most requirements.</li>
+        </ul>
+        <p><strong>Designation codes.</strong></p>
+        <div class="legend" id="legend"></div>
+      </div>
+    </details>
+  </main>
+
+  <aside class="catalog" id="catalog" aria-labelledby="cat-title">
+    <div class="cat-head">
+      <div class="cat-title-row">
+        <h2 id="cat-title">Courses</h2>
+        <button class="icon-btn cat-close" data-action="close-catalog" aria-label="Close courses">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="cat-target">
+        <label class="field" for="cat-term">Add courses to</label>
+        <div class="cat-target-row">
+          <select id="cat-term"></select>
+          <span class="cat-load" id="cat-load"></span>
+        </div>
+        <div class="cat-full" id="cat-full" hidden></div>
+      </div>
+      <label class="sr-only" for="cat-search">Search courses</label>
+      <input type="search" id="cat-search" placeholder="Search by code or title, such as PSYC or ethics" autocomplete="off">
+      <div class="filters" id="filters" role="group" aria-label="Show courses for"></div>
+      <div class="cat-count" id="cat-count" aria-live="polite"></div>
+    </div>
+    <ul class="cat-list" id="cat-list"></ul>
+  </aside>
+</div>
+</div>
+<div class="scrim" id="scrim" hidden data-action="close-catalog"></div>
+
+<dialog id="details" aria-labelledby="dlg-title"></dialog>
+<div class="toasts" id="toasts"></div>
+<div class="sr-only" role="status" aria-live="polite" id="announcer"></div>
+
+<script id="engine">
+// ---------- Course data (from ProjectOctober.Api/Data) and the DTA audit. No DOM access in this block. ----------
+const COURSES = [{"c":"ACCT 100","t":"Introduction to accounting","cr":3,"d":["UE"]},{"c":"ACCT 130","t":"QuickBooks","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): ACCT 100 with a minimum grade of C or ACCT& 201 with a minimum grade of C."},{"c":"ACCT 190","t":"Accounting internship","cr":5,"d":["UE"],"x":1,"min":1,"max":5},{"c":"ACCT& 201","t":"Principles of accounting I","cr":5,"d":["LE"],"p":[[[{"c":"MATH 97"},{"x":"Any course above MATH 97","k":"Other"}]]],"a":"Advisory (not enforced): Basic proficiency in Excel."},{"c":"ACCT& 202","t":"Principles of accounting II","cr":5,"d":["LE"],"p":[[[{"c":"ACCT& 201","g":"C"}]]]},{"c":"ACCT& 203","t":"Principles of accounting III","cr":5,"d":["LE"],"p":[[[{"c":"ACCT& 202","g":"C"}]]]},{"c":"ACCT 250","t":"Governmental/not-for-profit accounting","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"ACCT& 201","g":"C"}]]]},{"c":"ACCT 260","t":"Individual income tax","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"ACCT& 201","g":"C"}]]]},{"c":"ACCT 265","t":"Business Taxation","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"ACCT& 201","g":"C"}],[{"c":"ACCT 260","g":"C"}]]]},{"c":"ACCT 270","t":"Payroll accounting","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"ACCT& 201","g":"C"}]]]},{"c":"ANTH& 100","t":"Survey of anthropology","cr":5,"d":["G","S","SS"]},{"c":"ANTH& 104","t":"World prehistory","cr":5,"d":["G","SS"]},{"c":"ANTH 140","t":"The ancient Near East","cr":5,"d":["G","SS"]},{"c":"ANTH 150","t":"Northwest coast ethnobotany","cr":5,"d":["D","SS"]},{"c":"ANTH& 200","t":"Introduction to language","cr":5,"d":["SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ANTH& 204","t":"Archaeology","cr":5,"d":["S","SS"]},{"c":"ANTH& 205","t":"Biological anthropology","cr":5,"d":["MS","PB","S"]},{"c":"ANTH& 206","t":"Cultural anthropology","cr":5,"d":["D","G","S","SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ANTH& 210","t":"Indigenous Peoples of North America","cr":5,"d":["D","S","SS"]},{"c":"ANTH& 215","t":"Bioanthropology with lab","cr":5,"d":["L","MS","PB","S"]},{"c":"ANTH& 216","t":"Indigenous peoples of the northwest coast","cr":5,"d":["D","S","SS"]},{"c":"ANTH 225","t":"Psychological anthropology","cr":5,"d":["D","G","SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]],"a":"Advisory (not enforced): ANTH& 100 or ANTH& 205 or ANTH& 206."},{"c":"ANTH& 235","t":"Cross cultural medicine","cr":5,"d":["G","SS"]},{"c":"ANTH 250","t":"Applied anthropology","cr":5,"d":["D","SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ANTH 295","t":"Honors program special topics seminar","cr":2,"d":["MS","SS"],"p":[[[{"x":"Acceptance into the Honors Program","k":"Admittance"}]]]},{"c":"ART& 100","t":"Art appreciation","cr":5,"d":["H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ART 106","t":"Art of the Pacific Northwest Native Americans","cr":3,"d":["D","H"]},{"c":"ART 107","t":"Art in world cultures","cr":5,"d":["D","G","H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ART 112","t":"Drawing I","cr":5,"d":["H","P"],"min":3,"max":5},{"c":"ART 114","t":"History of graphic design","cr":5,"d":["G","H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ART 115","t":"2D design","cr":5,"d":["H","P"]},{"c":"ART 116","t":"3D design","cr":5,"d":["H","P"]},{"c":"ART 118","t":"Mixed media/collage","cr":5,"d":["H","P"],"a":"Advisory (not enforced): Prior drawing or painting experience."},{"c":"ART 123","t":"Water based media","cr":5,"d":["LE"]},{"c":"ART 130","t":"Ceramics I","cr":5,"d":["H","P"]},{"c":"ART 131","t":"Beginning throwing","cr":5,"d":["H","P"]},{"c":"ART 134","t":"The art of color","cr":5,"d":["H","P"]},{"c":"ART 150","t":"History of photography: 1839 to the present","cr":5,"d":["G","H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ART 155","t":"Art for children","cr":3,"d":["LE"]},{"c":"ART 160","t":"Sculpture","cr":5,"d":["H","P"]},{"c":"ART 175","t":"Printmaking: Relief and monotype","cr":5,"d":["H","P"]},{"c":"ART 176","t":"Printmaking: Etching I","cr":5,"d":["H","P"],"a":"Advisory (not enforced): ART 112."},{"c":"ART 177","t":"Printmaking: Screenprint","cr":5,"d":["H","P"]},{"c":"ART 179","t":"2D animation","cr":5,"d":["H","P"],"a":"Advisory (not enforced): Prior drawing or computer art experience."},{"c":"ART 185","t":"Introduction to visual communications","cr":5,"d":["H","P"]},{"c":"ART 186","t":"Introduction to digital video","cr":5,"d":["H","P"]},{"c":"ART 187","t":"Computer art","cr":5,"d":["H","P"],"a":"Advisory (not enforced): Prior basic drawing course."},{"c":"ART 200","t":"Figure drawing I","cr":5,"d":["LE"],"p":[[[{"c":"ART 112"}]]]},{"c":"ART 201","t":"Figure drawing II","cr":5,"d":["LE"],"p":[[[{"c":"ART 200"}]]]},{"c":"ART 202","t":"Figure drawing III","cr":5,"d":["LE"],"p":[[[{"c":"ART 201"}]]]},{"c":"ART 203","t":"History of Western art: Ancient and medieval","cr":5,"d":["G","H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ART 204","t":"Western art from 15th through 18th century","cr":5,"d":["G","H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ART 205","t":"Western art from 18th to mid-20th Century","cr":5,"d":["G","H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ART 206","t":"Far eastern art history","cr":5,"d":["G","H"]},{"c":"ART 212","t":"Drawing II","cr":5,"d":["LE"],"p":[[[{"c":"ART 112"}]]]},{"c":"ART 215","t":"Western art from World War II to the present","cr":5,"d":["G","H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ART 221","t":"Painting","cr":5,"d":["H","P"],"p":[[[{"c":"ART 112"}]]]},{"c":"ART 222","t":"Intermediate painting","cr":5,"d":["LE"],"p":[[[{"c":"ART 221"},{"x":"Permission of instructor","k":"Permission"}]]]},{"c":"ART 223","t":"Advanced painting","cr":5,"d":["LE"],"min":3,"max":5,"p":[[[{"c":"ART 222"}]]]},{"c":"ART 230","t":"Ceramics II","cr":5,"d":["LE"],"p":[[[{"c":"ART 130"},{"c":"ART 131"}]]]},{"c":"ART 231","t":"Ceramics III","cr":5,"d":["LE"],"p":[[[{"c":"ART 230"}]]]},{"c":"ART 276","t":"Printmaking: etching II","cr":5,"d":["H","P"],"p":[[[{"c":"ART 176"}]]]},{"c":"ART 295","t":"Honors program special topics seminar","cr":2,"d":["H"],"p":[[[{"x":"Acceptance into the Honors Program","k":"Admittance"}]]]},{"c":"ASL& 121","t":"American sign language I","cr":5,"d":["D","H"]},{"c":"ASL& 122","t":"American sign language II","cr":5,"d":["D","H"],"p":[[[{"c":"ASL& 121"}]]]},{"c":"ASL& 123","t":"American sign language III","cr":5,"d":["D","H"],"p":[[[{"c":"ASL& 122"}]]]},{"c":"ASTR& 100","t":"Survey of astronomy","cr":5,"d":["MS","PB"]},{"c":"ASTR 295","t":"Honors program special topics seminar","cr":2,"d":["MS"],"p":[[[{"x":"Acceptance into the Honors Program","k":"Admittance"}]]]},{"c":"BIOL& 100","t":"Survey of Biology","cr":5,"d":["L","MS","PB","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"BIOL 104","t":"Finding things out: Biology","cr":5,"d":["L","MS","PB"],"a":"Advisory (not enforced): PHYSC 104 and GEOL 104."},{"c":"BIOL 133","t":"Natural science of Australia and New Zealand","cr":5,"d":["G","MS","PB"]},{"c":"BIOL 159","t":"Marine biology","cr":5,"d":["L","MS","PB","S"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"BIOL& 160","t":"General biology with lab","cr":5,"d":["L","MS","PB","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"CHEM& 121","cc":1},{"c":"CHEM& 161","cc":1}]]]},{"c":"BIOL& 175","t":"Human biology with lab","cr":5,"d":["L","MS","PB"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"BIOL& 221","t":"Majors ecology/evolution","cr":5,"d":["L","MS","PB","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"CHEM& 161","cc":1}]]]},{"c":"BIOL& 222","t":"Majors cell biology/molecular","cr":5,"d":["L","MS","PB","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"CHEM& 161","g":"C-"}],[{"c":"BIOL& 221","g":"B-"}]]]},{"c":"BIOL& 223","t":"Majors organismal physiology","cr":5,"d":["L","MS","PB","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"BIOL& 222","g":"B-"}]]]},{"c":"BIOL& 241","t":"Human anatomy and physiology 1","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"BIOL& 160","g":"B-"},{"c":"BIOL& 222","g":"B-"}],[{"c":"CHEM& 121","g":"C"},{"c":"CHEM& 161","g":"C"}]]]},{"c":"BIOL& 242","t":"Human anatomy and physiology 2","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"BIOL& 241","g":"C"}]]]},{"c":"BIOL& 260","t":"Microbiology","cr":5,"d":["L","MS","PB"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"BIOL& 160","g":"B-"},{"c":"BIOL& 222","g":"B-"}],[{"c":"CHEM& 121","g":"C"},{"c":"CHEM& 161","g":"C"}]]]},{"c":"BIOL 295","t":"Honors program special topics seminar","cr":2,"d":["MS"],"p":[[[{"x":"Acceptance into the Honors Program","k":"Admittance"}]]]},{"c":"BTEC 101","t":"Introduction to business computing","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"MATH 87"},{"c":"MATH 97","cc":1},{"x":"Permission of instructor","k":"Permission"}]]]},{"c":"BTEC 103","t":"Beginning keyboarding & computer skills","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): ESOL 115."},{"c":"BTEC 104","t":"Advanced keyboarding & Microsoft Outlook","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"BTEC 103","g":"C"},{"x":"Ability to type at minimum 20 words per minute with good keyboarding technique","k":"Other"}]]]},{"c":"BTEC 121","t":"Word processing I","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): BTEC 101."},{"c":"BTEC 122","t":"Business document design","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"BTEC 121"}]]]},{"c":"BTEC 141","t":"Spreadsheets I","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"BTEC 101"}]]]},{"c":"BTEC 142","t":"Spreadsheets II","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"MATH 99"},{"c":"BUS 100"}],[{"c":"BTEC 101"},{"c":"BTEC 141"}]]],"a":"BTEC 101 must be the 5-credit version."},{"c":"BTEC 161","t":"Database management I","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"BTEC 101"}]]]},{"c":"BTEC 181","t":"Introduction to presentation software","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"BTEC 101"}]]]},{"c":"BUS 100","t":"Business math","cr":5,"d":["UE"],"a":"Advisory (not enforced): MATH 097."},{"c":"BUS& 101","t":"Introduction to business","cr":5,"d":["SS"],"a":"Advisory (not enforced): ENGL& 101 Placement."},{"c":"BUS 102","t":"Business ethics","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"BUS& 101"}]]]},{"c":"BUS 108","t":"Principles of marketing","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"BUS& 101","cc":1},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"BUS 109","t":"Digital marketing","cr":5,"d":["UE"],"x":1},{"c":"BUS 110","t":"Social Media Marketing","cr":5,"d":["UE"],"x":1},{"c":"BUS 111","t":"Retail management","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): BUS& 101 or permission of instructor."},{"c":"BUS 113","t":"Sales and promotion","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): BUS 108."},{"c":"BUS 114","t":"Search Engine Marketing","cr":5,"d":["UE"],"x":1},{"c":"BUS 125","t":"Leadership and relationship building","cr":5,"d":["UE"],"x":1,"min":3,"max":5},{"c":"BUS 140","t":"Business research and communication","cr":3,"d":["UE","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]],"a":"Advisory (not enforced): BUS& 101 or general business knowledge; BUS& 101 or general business knowledge."},{"c":"BUS 170","t":"Customer service for professionals","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"ENGL& 101"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"BUS 190","t":"Business internship","cr":5,"d":["UE"],"x":1,"min":1,"max":6},{"c":"BUS& 201","t":"Business law","cr":5,"d":["SS"],"a":"Advisory (not enforced): BUS& 101."},{"c":"BUS 212","t":"Marketing Research","cr":5,"d":["UE"],"x":1},{"c":"BUS 215","t":"Digital Marketing Campaign","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"BUS 110"}],[{"c":"BUS 114"}]]]},{"c":"BUS 216","t":"Marketing Strategy","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"BUS 212","g":"C-"}]]]},{"c":"BUS 222","t":"Human relations in business","cr":3,"d":["UE"],"x":1},{"c":"BUS 223","t":"Principles of management","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): BUS& 101."},{"c":"BUS 230","t":"Human resource management","cr":5,"d":["D","UE"],"a":"Advisory (not enforced): Placement in ENGL& 101."},{"c":"BUS 231","t":"Human relations in human resources","cr":5,"d":["D","UE"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]],"a":"Advisory (not enforced): BUS 230 with a minimum grade of C-."},{"c":"BUS 250","t":"Introduction to business analytics","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"MATH& 146","g":"C"}]]]},{"c":"BUS 295","t":"Honors program special topics seminar","cr":2,"d":["SS"],"p":[[[{"x":"Acceptance into the Honors Program","k":"Admittance"}]]]},{"c":"CHEM 104","t":"Finding things out: Chemistry","cr":5,"d":["L","MS","PB"]},{"c":"CHEM& 121","t":"Introduction to chemistry","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"MATH 99","g":"C-"}]]]},{"c":"CHEM& 131","t":"Introduction to organic/biochemistry","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"CHEM& 121"},{"c":"CHEM& 161"}],[{"x":"Prior biology course","k":"Other"}]]]},{"c":"CHEM& 161","t":"General chemistry with lab I","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"MATH& 141","cc":1}]]],"a":"Advisory (not enforced): CHEM& 121 or one year of High School Chemistry; A minimum grade of C in MATH& 141 is required to advance to CHEM& 162."},{"c":"CHEM& 162","t":"General chemistry with lab II","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"MATH& 141","g":"C"}],[{"c":"CHEM& 161","g":"C"}]]]},{"c":"CHEM& 163","t":"General chemistry with lab III","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"CHEM& 162","g":"C"}]]]},{"c":"CHEM& 261","t":"Organic chemistry with lab I","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"CHEM& 163","cc":1}]]],"a":"Advisory (not enforced): A minimum grade of C in CHEM& 163 is required to advance to CHEM& 262."},{"c":"CHEM& 262","t":"Organic chemistry with lab II","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"CHEM& 163","g":"C"}],[{"c":"CHEM& 261","g":"C"}]]]},{"c":"CHEM& 263","t":"Organic chemistry with lab III","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"CHEM& 262"}]]]},{"c":"CIS 104","t":"Unmanned aircraft systems (UAS) piloting","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"ENGL& 101","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]],"a":"Advisory (not enforced): MATH 098 with a minimum grade of C."},{"c":"CIS 105","t":"Computer operating systems I","cr":4,"d":["UE"],"x":1,"a":"Advisory (not enforced): CIS 100 or equivalent."},{"c":"CIS 106","t":"Open source operating systems","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C","cc":1},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 110","t":"Introduction to computer security","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C","cc":1},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 116","t":"Virtualization","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C","cc":1},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 120","t":"AI fundamentals","cr":5,"d":["UE"],"x":1},{"c":"CIS 125","t":"AI governance, law, and ethics","cr":5,"d":["UE"],"x":1},{"c":"CIS 190","t":"Technical internship","cr":5,"d":["UE"],"x":1,"min":1,"max":5,"p":[[[{"x":"Permission of the CIS Program Coordinator","k":"Permission"}]]]},{"c":"CIS 201","t":"Introduction to database design","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): CS& 141 with a minimum grade of C."},{"c":"CIS 205","t":"Computer operating systems II","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 206","t":"Computer support I","cr":4,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 214","t":"Network security I","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 106","g":"C"}],[{"c":"CIS 110","g":"C"}],[{"c":"CIS 226","g":"C"},{"c":"CIS 236","g":"C"}],[{"c":"CIS 116","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 215","t":"Network security II","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 214","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 216","t":"Industrial control systems security","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 215","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 220","t":"Cloud foundations","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 225","t":"Computer forensics","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C"}],[{"c":"CIS 206","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 236","t":"Cisco networking I","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C","cc":1},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 237","t":"Cisco networking II","cr":6,"d":["UE"],"x":1,"p":[[[{"c":"CIS 236","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 238","t":"Cisco networking III","cr":6,"d":["UE"],"x":1,"p":[[[{"c":"CIS 237","g":"C"},{"x":"Permission of program coordinator","k":"Permission"}]]]},{"c":"CIS 245","t":"Machine learning foundations","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): CIS 105 with a minimum grade of C; MATH 098 with a minimum grade of C."},{"c":"CJ& 101","t":"Introduction to criminal justice","cr":5,"d":["D","SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"CJ& 110","t":"Criminal law","cr":5,"d":["D","LE","W"]},{"c":"CJ 190","t":"Criminal justice internship","cr":5,"d":["UE"],"x":1,"min":1,"max":5},{"c":"CJ& 240","t":"Introduction to forensic science","cr":5,"d":["D","LE","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"CJ& 101"}]]]},{"c":"CJ 250","t":"Criminal investigation/interviewing techniques","cr":5,"d":["D","UE","W"],"p":[[[{"c":"CJ& 101"}],[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"CJ 275","t":"Patrol procedures","cr":5,"d":["D","UE","W"],"p":[[[{"c":"CJ& 101"}]]]},{"c":"CMST& 101","t":"Introduction to communication","cr":5,"d":["OC"],"a":"Advisory (not enforced): ENGL& 101."},{"c":"CMST& 102","t":"Introduction to mass media","cr":5,"d":["OC"],"a":"Advisory (not enforced): ENGL& 101."},{"c":"CMST& 210","t":"Interpersonal communication","cr":5,"d":["OC"],"a":"Advisory (not enforced): ENGL& 101."},{"c":"CMST& 220","t":"Public speaking","cr":5,"d":["OC"],"a":"Advisory (not enforced): ENGL& 101."},{"c":"CMST 225","t":"Intercultural communication","cr":5,"d":["G","H","SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"CMST& 101"},{"c":"CMST& 210"},{"c":"CMST& 220"},{"c":"CMST& 230"}]]]},{"c":"CMST& 230","t":"Small group communication","cr":5,"d":["OC"],"a":"Advisory (not enforced): ENGL& 101."},{"c":"CMST 245","t":"Introduction to organizational communication","cr":5,"d":["OC"],"a":"Advisory (not enforced): ENGL& 101."},{"c":"CO-OP 180","t":"Preparing for career work experience","cr":2,"d":["UE"],"x":1,"min":1,"max":2},{"c":"CS& 141","t":"Computer Science I Java","cr":5,"d":["MS"],"p":[[[{"c":"MATH 99"}]]],"a":"Advisory (not enforced): CS 101."},{"c":"CS 145","t":"Computer Science II","cr":5,"d":["MS"],"p":[[[{"c":"CS& 141","g":"C"}]]]},{"c":"CS 240","t":"Data structure and algorithm fundamentals","cr":5,"d":["MS"],"p":[[[{"c":"CS 145"}]]]},{"c":"ECED& 105","t":"Introduction to early childhood education","cr":5,"d":["SS"]},{"c":"ECED& 107","t":"Health/safety/nutrition","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): Prior or concurrent enrollment in ECED&105."},{"c":"ECED& 120","t":"Practicum - Nurturing relationships","cr":2,"d":["UE"],"x":1},{"c":"ECED& 132","t":"Infants/toddlers care","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): EDUC& 115."},{"c":"ECED& 134","t":"Family child care","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): ECED& 105."},{"c":"ECED& 137","t":"Outdoor learning for young children","cr":3,"d":["UE"],"x":1},{"c":"ECED& 138","t":"Home visiting and family engagement","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): EDUC& 115 with a minimum grade of C."},{"c":"ECED& 139","t":"Administration of early learning programs","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): ECED& 105."},{"c":"ECED& 160","t":"Curriculum development","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"ECED& 105"}],[{"c":"EDUC& 115","cc":1}]]]},{"c":"ECED& 170","t":"Learning environments for young children","cr":3,"d":["UE"],"x":1},{"c":"ECED& 180","t":"Language/literacy development","cr":3,"d":["UE"],"x":1},{"c":"ECED& 190","t":"Observation, assessment & record keeping","cr":3,"d":["UE"],"x":1},{"c":"ECED 220","t":"Music & movement","cr":3,"d":["UE"],"x":1},{"c":"ECED 236","t":"Math and science","cr":3,"d":["UE"],"x":1},{"c":"ECED 290","t":"Early childhood education internship","cr":5,"d":["UE"],"x":1,"min":2,"max":5,"a":"Advisory (not enforced): ECED& 120."},{"c":"ECON 100","t":"Survey of economic principles","cr":5,"d":["SS"]},{"c":"ECON& 201","t":"Micro economics","cr":5,"d":["SS"],"p":[[[{"c":"MATH 99"}]]]},{"c":"ECON& 202","t":"Macro economics","cr":5,"d":["G","SS"],"p":[[[{"c":"ECON& 201"}]]]},{"c":"ECON 210","t":"Economic ethics","cr":5,"d":["SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ECON 225","t":"Money and banking","cr":5,"d":["SS"]},{"c":"EDUC& 115","t":"Child development","cr":5,"d":["D","LE"]},{"c":"EDUC& 130","t":"Guiding behavior","cr":3,"d":["UE"],"x":1},{"c":"EDUC& 136","t":"School age care","cr":3,"d":["UE"],"x":1,"a":"Advisory (not enforced): Prior or concurrent enrollment in ECED& 105."},{"c":"EDUC& 150","t":"Child/family/community","cr":3,"d":["D","UE"]},{"c":"EDUC& 204","t":"Exceptional child","cr":5,"d":["LE"]},{"c":"EDUC 250","t":"Professionalism in the workplace","cr":2,"d":["UE"],"x":1},{"c":"ENGL& 101","t":"English composition I","cr":5,"d":["CC"],"p":[[[{"c":"ENGL 95"},{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"ENGL 201","t":"Advanced composition","cr":5,"d":["CC"],"p":[[[{"c":"ENGL& 101","g":"C-"}]]]},{"c":"ENGL 202","t":"Writing about literature","cr":5,"d":["CC"],"p":[[[{"c":"ENGL& 101","g":"C-"}]]]},{"c":"ENGL& 230","t":"Technical writing","cr":3,"d":["CC"],"p":[[[{"c":"ENGL& 101","g":"C-"}]]]},{"c":"ENGL& 235","t":"Technical writing","cr":5,"d":["CC"],"p":[[[{"c":"ENGL& 101","g":"C-"}]]]},{"c":"ENGR 101","t":"Introduction to engineering","cr":5,"d":["L","MS","PB"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"MATH& 141","cc":1}]]]},{"c":"ENGR& 114","t":"Engineering graphics","cr":5,"d":["MS"],"p":[[[{"c":"MATH& 141","cc":1}]]],"a":"Advisory (not enforced): ENGR 101."},{"c":"ENGR 151","t":"Introductory design and computing","cr":5,"d":["L","MS","PB"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"MATH& 152","g":"C"},{"c":"MATH& 142","g":"C"}],[{"c":"ENGR 101","g":"C"}]]]},{"c":"ENGR 201","t":"Fundamentals of materials science","cr":5,"d":["L","MS","PB"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"CHEM& 161","g":"C"}],[{"c":"PHYS& 221","g":"C"}]]]},{"c":"ENGR 202","t":"Logic circuits","cr":6,"d":["MS"],"p":[[[{"c":"MATH& 151","g":"C"}],[{"c":"ENGR 151","g":"C"},{"c":"CS& 141","g":"C"}]]]},{"c":"ENGR& 204","t":"Electrical circuits","cr":6,"d":["L","MS","PB"],"p":[[[{"c":"PHYS& 223","g":"C"}],[{"c":"MATH 238","cc":1}]]],"a":"Advisory (not enforced): ENGR 151 and MATH 204."},{"c":"ENGR& 214","t":"Statics","cr":5,"d":["MS"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"MATH& 152","g":"C"}],[{"c":"PHYS& 221","g":"C"}]]]},{"c":"ENGR& 215","t":"Dynamics","cr":5,"d":["MS"],"p":[[[{"c":"PHYS& 221","g":"C"}],[{"c":"ENGR& 214","g":"C"}],[{"c":"MATH& 163","g":"C"}]]]},{"c":"ENGR& 224","t":"Thermodynamics","cr":5,"d":["MS","PB","S"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"MATH& 152","g":"C"}],[{"c":"PHYS& 222","g":"C"}],[{"c":"CHEM& 162","g":"C"}]]]},{"c":"ENGR& 225","t":"Mechanics of materials","cr":5,"d":["MS"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"ENGR& 214","g":"C"}]]]},{"c":"ENGR& 240","t":"Engineering Computations","cr":5,"d":["MS"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"MATH& 163","g":"C"}],[{"c":"MATH 207","g":"C"}],[{"c":"ENGR 151","g":"C"},{"c":"CS& 141","g":"C"}]]],"a":"Advisory (not enforced): MATH 204 or concurrent enrollment."},{"c":"FILM 101","t":"Introduction to film","cr":5,"d":["H"],"min":3,"max":5},{"c":"FIN 190","t":"Finance internship","cr":4,"d":["UE"],"x":1,"min":1,"max":4},{"c":"FIN 215","t":"Principles of finance","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): ACCT& 201."},{"c":"FIN 235","t":"Investments","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): ACCT& 201."},{"c":"GEOL& 101","t":"Introduction to physical geology","cr":5,"d":["L","MS","PB"]},{"c":"GEOL 211","t":"Physical geology","cr":5,"d":["L","MS","PB"]},{"c":"GEOL 212","t":"Historical geology","cr":5,"d":["L","MS","PB","W"],"p":[[[{"c":"GEOL& 101"},{"c":"GEOL 211"}],[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"HTBM 175","t":"Travel, tourism, business and society","cr":4,"d":["UE"],"x":1,"a":"Advisory (not enforced): MATH 094; ENGL 095; ESOL 115 and BTEC 101."},{"c":"HTBM 176","t":"Food and beverage operations management","cr":4,"d":["UE"],"x":1,"a":"Advisory (not enforced): ESOL 115 or MATH 094; ENGL 095 and BTEC 101."},{"c":"HTBM 177","t":"Meeting and event planning","cr":4,"d":["UE"],"x":1,"a":"Advisory (not enforced): ESOL 115; MATH 094; ENGL 095 and BTEC 101."},{"c":"HTBM 179","t":"Introduction to hospitality management","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): ENGL 095 or ESOL 115 or ENGL& 101."},{"c":"HTBM 190","t":"Hospitality & tourism business mgt internship","cr":5,"d":["UE"],"x":1,"min":1,"max":7,"a":"Advisory (not enforced): CO-OP 180."},{"c":"HTBM 205","t":"Hotel operations management","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): ESOL 115 or ENGL 095; MATH 094; HTBM 179; BTEC 101."},{"c":"HUMDV 115","t":"Topics in stress and anxiety management","cr":2,"d":["UE"],"x":1},{"c":"IDS 112","t":"Ethno mathematics","cr":5,"d":["D","G","SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"IDS 113","t":"Quantitative methods in the social sciences","cr":5,"d":["SS"],"a":"Advisory (not enforced): One course in Anthropology, Sociology or Psychology."},{"c":"IDS 170","t":"Introduction to sustainability","cr":5,"d":["G","S","SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"IDS 180","t":"Visual media and culture","cr":5,"d":["G","H","SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"MA 101","t":"Medical terminology I","cr":2,"d":["UE"],"x":1},{"c":"MA 108","t":"Medical law and ethics","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): Computer literacy; ENGL& 101."},{"c":"MA 113","t":"Introduction to medical computing","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance: required. program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): MATH 094; Keyboard 20 wpm."},{"c":"MA 129","t":"Concepts in effective communication","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 132","t":"Allied health credentials","cr":2,"d":["UE"],"x":1},{"c":"MA 139","t":"Introduction to allied health professions","cr":3,"d":["UE"],"x":1},{"c":"MA 141","t":"Medical office & electronic records","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 143","t":"Intro to practice management and basic finance","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 145","t":"Insurance-based medical billing and coding","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 146","t":"Medical terminology for the medical assistant","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 147","t":"The human body in health and disease I","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MA 146","cc":1}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 148","t":"The human body in health and disease II","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MA 147","g":"C"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 151","t":"Protective practices","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"x":"First Aid and CPR certificate","k":"Other"}],[{"x":"Seven hour HIV training","k":"Other"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 152","t":"Clinical procedures I","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 153","t":"Clinical procedures II","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MA 152","g":"C"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 154","t":"Clinical procedures III","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MA 153","g":"C"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 156","t":"Pharmacology","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"MA 157","t":"Essentials of care navigation","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"MA 200","t":"Practicum with seminar","cr":8,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"x":"Completion of all medical assisting certificate core courses prior to entry into practicum with a minimum grade of C","k":"Other"}]]]},{"c":"MATH& 107","t":"Math in society","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH 98","g":"C"},{"c":"MATH 88","g":"C"}]]]},{"c":"MATH& 141","t":"Precalculus I","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH 99","g":"C"},{"c":"MATH 132","g":"C"}]]]},{"c":"MATH& 142","t":"Precalculus II","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH& 141","g":"C"}]]]},{"c":"MATH 145","t":"Algebra applications for economics and business","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH 99","g":"C"}]]]},{"c":"MATH& 146","t":"Introduction to statistics","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH 98","g":"C"},{"c":"MATH 88","g":"C"}]]]},{"c":"MATH& 148","t":"Business calculus","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH& 141","g":"C"},{"c":"MATH 145","g":"C"}]]]},{"c":"MATH& 151","t":"Calculus I","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH 133","g":"C"},{"c":"MATH& 142","g":"C"}]]]},{"c":"MATH& 152","t":"Calculus II","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH& 151","g":"C"}]]]},{"c":"MATH& 163","t":"Calculus III","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH& 152","g":"C"}]]],"a":"Graphing calculator required."},{"c":"MATH 204","t":"Introduction to linear algebra","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH& 151","g":"C"}]]]},{"c":"MATH 207","t":"Taylor series","cr":1,"d":["LE"],"p":[[[{"c":"MATH& 152","g":"C"}]]]},{"c":"MATH 208","t":"Sequences and series","cr":3,"d":["MS","QSR"],"p":[[[{"c":"MATH& 151","g":"C"}]]]},{"c":"MATH 238","t":"Introduction to differential equations","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH& 152","g":"C"}]]],"a":"Graphing calculator required."},{"c":"MATH 246","t":"Statistics for engineering","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH& 152","g":"C"}]]]},{"c":"MATH& 264","t":"Calculus 4","cr":5,"d":["MS","QSR"],"p":[[[{"c":"MATH& 163","g":"C"}]]]},{"c":"MT 105","t":"Ethical & legal issues for massage therapists","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"MT 110","t":"Massage therapy I","cr":7,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"MT 111","t":"Massage therapy II","cr":7,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MT 110"}]]]},{"c":"MT 112","t":"Massage therapy III","cr":7,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MT 111"}]]]},{"c":"MT 202","t":"Kinesiology I for massage therapists","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"MT 203","t":"Kinesiology II for massage therapists","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MT 202"}]]]},{"c":"MT 204","t":"Kinesiology III for massage therapists","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MT 203"}]]]},{"c":"MT 205","t":"Business applications for massage therapists","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"MT 240","t":"Massage license preparation/career development","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"MT 250","t":"Student clinic","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"MT 271","t":"Anatomy & pathophysiology I - Massage therapists","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"MT 272","t":"Anatomy & pathophysiology II - Massage therapists","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"MT 271"}]]]},{"c":"MUSC& 141","t":"Music theory I","cr":5,"d":["H"]},{"c":"MUSC& 142","t":"Music theory II","cr":5,"d":["H"],"p":[[[{"c":"MUSC& 141"}]]]},{"c":"MUSC& 143","t":"Music theory III","cr":5,"d":["H"],"p":[[[{"c":"MUSC& 142"}]]]},{"c":"MUSC 150","t":"Applied music instruction I","cr":1,"d":["LE","P"]},{"c":"MUSC 160","t":"Class piano I","cr":2,"d":["LE"]},{"c":"MUSC 161","t":"Solo piano repertoire and techniques","cr":2,"d":["LE"],"p":[[[{"c":"MUSC 160"}]]]},{"c":"MUSC 162","t":"Class piano III","cr":2,"d":["LE"],"p":[[[{"c":"MUSC 161"}]]]},{"c":"MUSC 165","t":"Collegiate choir","cr":2,"d":["LE"]},{"c":"MUSC 174","t":"Chamber music ensemble","cr":2,"d":["LE"]},{"c":"MUSC 175","t":"Jazz band","cr":2,"d":["LE"]},{"c":"MUSC 184","t":"Ensemble performance","cr":2,"d":["LE"],"p":[[[{"x":"By audition with partner organization","k":"Other"}]]]},{"c":"MUSC 186","t":"Contemporary music ensemble","cr":2,"d":["LE"]},{"c":"MUSC& 241","t":"Music theory IV","cr":5,"d":["H"],"p":[[[{"c":"MUSC& 143","g":"C"}]]]},{"c":"MUSC& 242","t":"Music theory V","cr":5,"d":["H"],"p":[[[{"c":"MUSC& 241","g":"C"}]]]},{"c":"MUSC& 243","t":"Music theory VI","cr":5,"d":["H"],"p":[[[{"c":"MUSC& 242","g":"C"}]]]},{"c":"MUSC 250","t":"Applied music instruction II","cr":1,"d":["LE","P"],"p":[[[{"c":"MUSC 150","g":"C"}],[{"x":"Completion of 100-level jury with a C or higher","k":"Other"}]],[[{"x":"Permission of instructor","k":"Permission"}]]]},{"c":"NURS 100","t":"Nursing assistant","cr":8,"d":["UE"],"x":1,"a":"Advisory (not enforced): ENGL 095."},{"c":"NURS 170","t":"Introduction to pharmacology concepts","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 171","cc":1}]]],"a":"Advisory (not enforced): ANTH& 235."},{"c":"NURS 171","t":"Introduction to nursing concepts with practicum","cr":9,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 170","cc":1}],[{"c":"NUTR 114","cc":1}],[{"c":"NUTR 115","cc":1}],[{"c":"PSYC 114","cc":1}],[{"c":"PHIL 118","cc":1}]]],"a":"Advisory (not enforced): ANTH& 235."},{"c":"NURS 172","t":"Nursing concepts with practicum I","cr":10,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 170","g":"C"}],[{"c":"NURS 171","g":"C"}],[{"c":"NUTR 114","g":"C"}],[{"c":"NUTR 115","g":"C"}],[{"c":"PSYC 114","g":"C"}],[{"c":"PHIL 118","g":"C"}],[{"c":"NUTR 116","cc":1}],[{"c":"PSYC 115","cc":1}]]]},{"c":"NURS 173","t":"Nursing concepts with practicum II","cr":9,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 172","g":"C"}],[{"c":"NUTR 116"}],[{"c":"PSYC 115"}],[{"c":"NUTR 117","cc":1}],[{"c":"PSYC 116","cc":1}],[{"c":"PHIL 119","cc":1}]]]},{"c":"NURS 271","t":"Nursing concepts with practicum III","cr":9,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 173","g":"C"}],[{"c":"NUTR 214","cc":1}],[{"c":"PSYC 214","cc":1}],[{"c":"PHIL 214","cc":1}]]]},{"c":"NURS 272","t":"Nursing concepts with practicum IV","cr":10,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 271","g":"C"}],[{"c":"NUTR 214","g":"C"}],[{"c":"PSYC 214","g":"C"}],[{"c":"PHIL 214","g":"C"}],[{"c":"PSYC 215","cc":1}],[{"c":"PHIL 215","cc":1}]]]},{"c":"NURS 273","t":"Nursing concepts with practicum V","cr":11,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 272","g":"C"}],[{"c":"PHIL 215","g":"C"}],[{"c":"PSYC 215","g":"C"}],[{"c":"PHIL 216","cc":1}]]]},{"c":"NUTR& 101","t":"Nutrition","cr":5,"d":["MS","PB"]},{"c":"NUTR 114","t":"Nutrition in healthcare I","cr":1,"d":["MS","PB"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 171","cc":1}]]]},{"c":"NUTR 115","t":"Nutrition in healthcare II","cr":1,"d":["MS","PB"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 171","cc":1}]]]},{"c":"NUTR 116","t":"Nutrition in healthcare III","cr":1,"d":["MS","PB"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 172","cc":1}]]]},{"c":"NUTR 117","t":"Nutrition in healthcare IV","cr":1,"d":["MS","PB"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 173","cc":1}]]]},{"c":"NUTR 214","t":"Nutrition in healthcare V","cr":1,"d":["MS","PB"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 271","cc":1}]]]},{"c":"OFFAD 105","t":"Records management","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]],"a":"Advisory (not enforced): ENGL& 101."},{"c":"OFFAD 150","t":"Office procedures","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): ENGL& 101."},{"c":"OFFAD 160","t":"Office management","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): ENGL& 101."},{"c":"OFFAD 190","t":"Office administration internship","cr":5,"d":["UE"],"x":1,"min":1,"max":5},{"c":"PHIL& 115","t":"Critical thinking","cr":5,"d":["H"],"min":3,"max":5},{"c":"PHIL& 117","t":"Traditional logic","cr":5,"d":["QSR"],"p":[[[{"c":"MATH 99","g":"C"}]]]},{"c":"PHIL 118","t":"Ethics and policy in healthcare I","cr":1,"d":["H"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 171","cc":1}]]]},{"c":"PHIL 119","t":"Ethics and policy in healthcare II","cr":1,"d":["H"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 173","cc":1}]]]},{"c":"PHIL 130","t":"Introduction to ethics","cr":5,"d":["H"]},{"c":"PHIL 140","t":"Introduction to world religions","cr":5,"d":["D","G","H","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"PHIL 214","t":"Ethics and policy in healthcare III","cr":1,"d":["H"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 271","cc":1}]]]},{"c":"PHIL 215","t":"Ethics and policy in healthcare IV","cr":1,"d":["H"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 272","cc":1}]]]},{"c":"PHIL 216","t":"Ethics and policy in healthcare V","cr":1,"d":["H"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 273","cc":1}]]]},{"c":"PHYS& 101","t":"General Physics I","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"MATH& 142","cc":1}]]],"a":"Math corequisite allowed"},{"c":"PHYS& 221","t":"Engineering physics I","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"MATH& 151","g":"C"}],[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"x":"One college level physics course or a high school physics course","k":"Other"}]]]},{"c":"PHYS& 222","t":"Engineering physics II","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"PHYS& 221","g":"C"}],[{"c":"MATH& 152","g":"C"}],[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"PHYS& 223","t":"Engineering physics III","cr":5,"d":["L","MS","PB"],"p":[[[{"c":"PHYS& 222","g":"C"}]]]},{"c":"PLS 111","t":"Introduction to law and the legal process","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"PLS 127","cc":1}]]]},{"c":"PLS 112","t":"Law office technology","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"PLS 127","cc":1}],[{"c":"PLS 111","cc":1}],[{"c":"BTEC 121","cc":1},{"c":"BTEC 122","cc":1}]]]},{"c":"PLS 120","t":"Civil procedure and litigation","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"PLS 127","cc":1}],[{"c":"PLS 111","cc":1}],[{"c":"BTEC 121","cc":1},{"c":"BTEC 122","cc":1}]]]},{"c":"PLS 127","t":"Legal terminology","cr":3,"d":["UE"],"x":1},{"c":"PLS 130","t":"Legal interview and investigation techniques","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"PLS 111","cc":1}],[{"c":"PLS 127","cc":1}]]]},{"c":"PLS 151","t":"Law office procedures and legal ethics","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"PLS 127","cc":1}],[{"c":"PLS 111","cc":1}],[{"c":"BTEC 121","cc":1},{"c":"BTEC 122","cc":1}]]]},{"c":"PLS 152","t":"Intro to legal research, writing and analysis","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"PLS 111","cc":1}],[{"c":"PLS 127","cc":1}]]]},{"c":"PLS 160","t":"Administrative law","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"PLS 127","cc":1}],[{"c":"PLS 111","cc":1}],[{"c":"BTEC 121","cc":1},{"c":"BTEC 122","cc":1}]]]},{"c":"PLS 175","t":"Contracts, consumer law and access to justice","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"PLS 127","cc":1}],[{"c":"PLS 111","cc":1}],[{"c":"BTEC 121","cc":1},{"c":"BTEC 122","cc":1}]]]},{"c":"PLS 190","t":"Paralegal studies internship","cr":5,"d":["UE"],"x":1,"min":1,"max":5,"a":"Advisory (not enforced): Completion of core and paralegal field requirements for paralegal studies degree."},{"c":"PLS 210","t":"Legal documents, admin processes, probate, wills","cr":3,"d":["UE"],"x":1,"p":[[[{"c":"PLS 127","g":"C","cc":1}],[{"c":"BTEC 121","g":"C","cc":1},{"c":"BTEC 122","g":"C","cc":1}]]],"a":"Advisory (not enforced): PLS 111 and placement into ENGL& 101."},{"c":"PLS 220","t":"Real estate legal procedures","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"PLS 127","g":"C","cc":1}],[{"c":"BTEC 121","g":"C","cc":1},{"c":"BTEC 122","g":"C","cc":1}]]],"a":"Advisory (not enforced): PLS 111."},{"c":"PLS 240","t":"The practice of family law I","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"PLS 127","cc":1}],[{"c":"PLS 111","cc":1}],[{"c":"BTEC 121","cc":1},{"c":"BTEC 122","cc":1}]]]},{"c":"PLS 241","t":"The practice of family law II","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"PLS 240","g":"C"}]]]},{"c":"PLS 250","t":"Legal interpretation","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"PLS 111","cc":1}],[{"c":"PLS 127","cc":1}]]],"a":"Advisory (not enforced): Proficiency in English and one additional language."},{"c":"PLS 260","t":"Access to justice","cr":5,"d":["UE"],"x":1},{"c":"POLS& 202","t":"American government","cr":5,"d":["SS"]},{"c":"PSYC& 100","t":"General psychology","cr":5,"d":["SS"]},{"c":"PSYC 105","t":"Career search process","cr":3,"d":["UE"],"x":1},{"c":"PSYC 114","t":"Psychosocial issues in healthcare I","cr":1,"d":["SS"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 171","cc":1}]]]},{"c":"PSYC 115","t":"Psychosocial issues in healthcare II","cr":1,"d":["SS"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 172","cc":1}]]]},{"c":"PSYC 116","t":"Psychosocial issues in healthcare III","cr":1,"d":["SS"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 173","cc":1}]]]},{"c":"PSYC& 200","t":"Lifespan psychology","cr":5,"d":["SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}],[{"c":"PSYC& 100"}]]]},{"c":"PSYC 211","t":"Social psychology","cr":5,"d":["SS","W"],"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]],"a":"Advisory (not enforced): PSYC& 100."},{"c":"PSYC 214","t":"Psychosocial issues in healthcare IV","cr":1,"d":["SS"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 271","cc":1}]]]},{"c":"PSYC 215","t":"Psychosocial issues in healthcare V","cr":1,"d":["SS"],"p":[[[{"x":"Admittance to Nursing program required","k":"Admittance"}],[{"c":"NURS 272","cc":1}]]]},{"c":"PSYC& 220","t":"Psychological disorders","cr":5,"d":["D","SS"],"a":"Advisory (not enforced): PSYC& 100."},{"c":"PTA 101","t":"Introduction to physical therapy","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 105","t":"Tests and measurements","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 110","t":"PTA procedures I","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 111","t":"PTA procedures II","cr":7,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 113","t":"PTA procedures III","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 160","t":"Pre-Clinical and Service Learning for the PTA","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 201","t":"Ethical issues in physical therapy","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 202","t":"Applied anatomy and clinical kinesiology","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 204","t":"Clinical neurology","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 225","t":"PTA procedures IV","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 226","t":"PTA procedures V","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 227","t":"PTA procedures VI","cr":7,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 251","t":"Clinical experience","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 254","t":"Clinical affiliation I","cr":9,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 255","t":"Clinical affiliation II","cr":9,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 273","t":"Anatomy and pathophysiology for the PTA I","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 274","t":"Anatomy and pathophysiology for the PTA II","cr":4,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 280","t":"Special topics in physical therapy","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"PTA 285","t":"Manual therapy techniques for PTAs","cr":1,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to PTA program required","k":"Admittance"}]]]},{"c":"SD 120","t":"HTML, CSS, and JavaScript fundamentals","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): Windows file management and keyboarding skills."},{"c":"SD 130","t":"Systems analysis and design","cr":5,"d":["UE"],"x":1},{"c":"SD 231","t":"Web programming I","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"SD 120","g":"C"}],[{"c":"CS& 141","g":"C"}]]]},{"c":"SD 232","t":"Web programming II","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"SD 231","g":"C"}],[{"c":"CIS 106","g":"C"}]]]},{"c":"SD 235","t":"Programming for mobile devices","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CIS 105","g":"C"}],[{"c":"CS 145","g":"C"}]]]},{"c":"SD 250","t":"Software security principles","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CS 240","g":"C"}]]],"a":"Advisory (not enforced): CIS 201 with a minimum grade of C."},{"c":"SD 260","t":"Graphical user interface programming","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CS 145","g":"C-"}]]]},{"c":"SD 270","t":"Introduction to Artificial Intelligence","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"CS 145","g":"C"}]]]},{"c":"SD 290","t":"Software development internship","cr":5,"d":["UE"],"x":1,"min":0,"max":6,"p":[[[{"x":"Permission of instructor or program coordinator","k":"Permission"}]]]},{"c":"SD 299","t":"Software development capstone","cr":5,"d":["UE"],"x":1,"min":0,"max":6,"p":[[[{"c":"SD 247","g":"C"},{"x":"Permission of instructor or program coordinator","k":"Permission"}]]]},{"c":"SOC& 101","t":"Introduction to sociology","cr":5,"d":["D","SS"]},{"c":"SOC& 201","t":"Social problems","cr":5,"d":["D","SS"]},{"c":"SOC 220","t":"Contemporary social issues","cr":5,"d":["D","SS"]},{"c":"SOC 250","t":"Multicultural issues","cr":5,"d":["D","SS"]},{"c":"SPAN& 121","t":"Spanish I","cr":5,"d":["G","H"]},{"c":"SPAN& 122","t":"Spanish II","cr":5,"d":["G","H"],"p":[[[{"c":"SPAN& 121"}]]]},{"c":"SPAN& 123","t":"Spanish III","cr":5,"d":["G","H"],"p":[[[{"c":"SPAN& 122"}]]]},{"c":"SUDP 129","t":"Physiology & pharmacology of psychoactive drugs","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): SUDP 131 recommended."},{"c":"SUDP 131","t":"Survey of addiction","cr":4,"d":["LE"]},{"c":"SUDP 132","t":"Law, ethics & professional development","cr":3,"d":["UE"],"x":1},{"c":"SUDP 133","t":"Family systems/adolescent treatment","cr":4,"d":["UE"],"x":1,"a":"Advisory (not enforced): SUDP 131 recommended."},{"c":"SUDP 134","t":"Counseling techniques","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): SUDP 131 recommended."},{"c":"SUDP 140","t":"Counseling diverse populations","cr":4,"d":["D","UE"],"a":"Advisory (not enforced): SUDP 131 recommended."},{"c":"SUDP 194","t":"Introduction to behavioral health","cr":3,"d":["UE"],"x":1},{"c":"SUDP 232","t":"Treatment theories","cr":4,"d":["UE"],"x":1,"a":"Advisory (not enforced): SUDP 131."},{"c":"SUDP 234","t":"Group facilitation","cr":5,"d":["UE"],"x":1,"a":"Advisory (not enforced): SUDP 131."},{"c":"SUDP 235","t":"Case management I","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"SUDP 129","g":"C"}],[{"c":"SUDP 131","g":"C"}],[{"c":"SUDP 132","g":"C"}]]]},{"c":"SUDP 236","t":"Case management II","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"SUDP 129","g":"C"}],[{"c":"SUDP 131","g":"C"}],[{"c":"SUDP 132","g":"C"}],[{"c":"SUDP 235","g":"C"}]]]},{"c":"SUDP 237","t":"Co-occurring behavioral health disorders","cr":4,"d":["UE"],"x":1,"a":"Advisory (not enforced): SUDP 131 recommended."},{"c":"SUDP 238","t":"Substance use disorder professional practicum","cr":4,"d":["UE"],"x":1,"p":[[[{"c":"SUDP 129","g":"C"}],[{"c":"SUDP 131","g":"C"}],[{"c":"SUDP 132","g":"C"}],[{"c":"SUDP 235","g":"C"}],[{"c":"SUDP 239","g":"C"}],[{"c":"SUDP 240","cc":1}]]]},{"c":"SUDP 239","t":"SUDP pre-practicum","cr":2,"d":["UE"],"x":1,"p":[[[{"c":"SUDP 129","g":"C"}],[{"c":"SUDP 131","g":"C"}],[{"c":"SUDP 132","g":"C"}],[{"c":"SUDP 235","g":"C"}]]]},{"c":"SUDP 240","t":"SUDP practicum seminar","cr":1,"d":["LE"],"p":[[[{"c":"SUDP 239","g":"C"}],[{"c":"SUDP 238","cc":1}]]]},{"c":"SUDP 280","t":"Survey of addiction - alternative training","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"SUDP 281","t":"Law & ethics for addiction counseling alt","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"SUDP 282","t":"Pharmacological & physiological drug actions","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"SUDP 283","t":"Family systems/adolescent treatment addiction","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"SUDP 284","t":"American society of addiction medicine alt","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"SUDP 285","t":"Addiction treatment: Individual & group alt","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Placement into ENGL& 101","k":"Placement"}]]]},{"c":"SW 217","t":"Introduction to social work","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Admittance to BAS in Social Work program required","k":"Admittance"}]]]},{"c":"VISCM 190","t":"Visual communications internship","cr":5,"d":["UE"],"x":1,"min":1,"max":5,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"x":"Placement into ENGL& 101","k":"Placement"}]]],"a":"Advisory (not enforced): VISCM 190 courses above 5 credits can be arranged with permission from a Co-op Coordinator."},{"c":"VISCM 192","t":"Design lab","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 240","t":"Typography","cr":3,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 250","t":"Layout and publication design I","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 251","t":"Layout and publication design II","cr":5,"d":["UE"],"x":1,"p":[[[{"c":"VISCM 250"}],[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 260","t":"Vector illustration","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 262","t":"Advanced digital imaging","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 270","t":"Print production and prepress","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 280","t":"Web design and authoring I","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 282","t":"Web design and authoring II","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}],[{"c":"VISCM 280"}]]]},{"c":"VISCM 284","t":"Web content management systems","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 286","t":"Video production for the web","cr":5,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]},{"c":"VISCM 292","t":"Portfolio/professional practices","cr":2,"d":["UE"],"x":1,"p":[[[{"x":"Program admittance required","k":"Admittance"}]]]}];
+const CAT = new Map(COURSES.map(c => [c.c, c]));
+const DEGREE_CREDITS = 90;
+const LANG = new Set(['SPAN', 'FRCH', 'ASL', 'JAPN', 'CHIN', 'GERM', 'RUSS', 'ARAB', 'KOR', 'ITAL']);
+const AREAS = ['H', 'SS', 'MS'];
+const SPEC = ['W', 'D', 'G', 'S'];
+const AREA_NAME = { H: 'Humanities', SS: 'Social sciences', MS: 'Math & science' };
+const SPEC_NAME = { W: 'Writing intensive', D: 'Diversity', G: 'Global studies', S: 'Sustainability' };
+const DESIGNATION = {
+  CC: 'Composition', OC: 'Oral communication', QSR: 'Quantitative/symbolic reasoning', H: 'Humanities', SS: 'Social/behavioral science',
+  MS: 'Math/science', PB: 'Physical/biological science', L: 'Lab', LE: 'Listed elective', UE: 'Unlisted elective',
+  W: 'Writing intensive', D: 'Diversity', G: 'Global studies', S: 'Sustainability', P: 'Performance'
+};
+
+const subjectOf = code => code.split(/[\s&]/)[0];
+const numberOf = code => +((code.match(/\d+/) || [0])[0]);
+const disciplineOf = code => LANG.has(subjectOf(code)) ? 'World languages' : subjectOf(code);
+const has = (c, d) => c.d.includes(d);
+const isLang100 = c => LANG.has(subjectOf(c.c)) && numberOf(c.c) < 200;
+const creditRange = c => c.min !== undefined ? `${c.min}–${c.max}` : String(c.cr);
+
+/** The credits a course carries in a plan: the number chosen for a variable-credit course, otherwise its catalog credits. */
+function withCredits(code, credits) {
+  const c = CAT.get(code);
+  if (!c) return null;
+  const cr = credits && credits.has(code) ? credits.get(code) : c.cr;
+  return cr === c.cr ? c : Object.assign({}, c, { cr });
+}
+
+/** Audits the planned courses (in plan order) against the DTA, trying each way the core and multi-area courses could be used. */
+function audit(codes, credits) {
+  const list = codes.map(code => withCredits(code, credits)).filter(Boolean);
+  const engl = list.find(c => c.c === 'ENGL& 101') || null;
+  // Courses with the same designations, credits and subject are interchangeable here, so only one of each is tried.
+  const sig = c => c.d.join(',') + '|' + c.cr + '|' + disciplineOf(c.c);
+  const distinct = xs => { const seen = new Set(); return xs.filter(c => !seen.has(sig(c)) && seen.add(sig(c))); };
+  const otherUse = c => AREAS.some(a => has(c, a));
+  const choices = xs => { const d = distinct(xs).slice(0, 4); return d.length ? (d.some(otherUse) ? [null, ...d] : d) : [null]; };
+  const ccs = choices(list.filter(c => has(c, 'CC') && c.c !== 'ENGL& 101'));
+  const ocs = choices(list.filter(c => has(c, 'OC')));
+  const qsr = distinct(list.filter(c => has(c, 'QSR')));
+  const qOptions = qsr.filter(c => c.cr >= 5).slice(0, 5).map(c => [c]);
+  if (!qOptions.length) {
+    for (let i = 0; i < qsr.length && i < 6; i++)
+      for (let j = i + 1; j < qsr.length && j < 6; j++)
+        if (qsr[i].cr + qsr[j].cr >= 5) qOptions.push([qsr[i], qsr[j]]);
+    if (!qOptions.length) qOptions.push(qsr.length ? [qsr[0]] : []);
+  }
+
+  let best = null;
+  for (const cc of ccs)
+    for (const oc of ocs)
+      for (const q of qOptions) {
+        if (oc && (oc === cc || q.includes(oc))) continue;
+        if (cc && q.includes(cc)) continue;
+        const sel = { engl, cc, oc, q };
+        const core = new Set([engl, cc, oc, ...q].filter(Boolean));
+        const r = allocate(list, core, sel);
+        if (!best || r.score < best.score - 1e-9 || (Math.abs(r.score - best.score) < 1e-9 && r.total > best.total)) best = r;
+      }
+  return best;
+}
+
+function allocate(list, core, sel) {
+  const rest = list.filter(c => !core.has(c));
+  const multi = rest.filter(c => AREAS.filter(a => has(c, a)).length > 1);
+  let best = null;
+  const consider = assign => {
+    const r = evaluateAssignment(rest, sel, assign);
+    if (!best || r.score < best.score - 1e-9 || (Math.abs(r.score - best.score) < 1e-9 && r.total > best.total)) best = r;
+  };
+  if (multi.length <= 6) {
+    const assign = new Map();
+    const walk = i => {
+      if (i === multi.length) { consider(new Map(assign)); return; }
+      for (const a of AREAS.filter(a => has(multi[i], a))) { assign.set(multi[i], a); walk(i + 1); }
+    };
+    walk(0);
+  } else {
+    const sums = { H: 0, SS: 0, MS: 0 };
+    rest.forEach(c => { const a = AREAS.filter(x => has(c, x)); if (a.length === 1) sums[a[0]] += c.cr; });
+    const assign = new Map();
+    multi.forEach(c => { const a = AREAS.filter(x => has(c, x)).sort((x, y) => sums[x] - sums[y])[0]; assign.set(c, a); sums[a] += c.cr; });
+    consider(assign);
+  }
+  return best;
+}
+
+function evaluateAssignment(rest, sel, assign) {
+  const uses = new Map();
+  const use = (c, label, cr, kind, key, extra) => {
+    if (!uses.has(c.c)) uses.set(c.c, []);
+    uses.get(c.c).push(Object.assign({ label, cr, kind, key }, extra || {}));
+  };
+
+  let commCr = 0;
+  if (sel.engl) { use(sel.engl, 'Communication: English Composition I', sel.engl.cr, 'core', 'comm'); commCr += sel.engl.cr; }
+  if (sel.cc) { use(sel.cc, 'Communication: second composition course', sel.cc.cr, 'core', 'comm'); commCr += sel.cc.cr; }
+  if (sel.oc) { use(sel.oc, 'Communication: oral communication', sel.oc.cr, 'core', 'comm'); commCr += sel.oc.cr; }
+  let qCr = 0;
+  sel.q.forEach(c => { use(c, 'Quantitative reasoning', c.cr, 'core', 'qsr'); qCr += c.cr; });
+
+  const byArea = { H: [], SS: [], MS: [] };
+  const electives = [];
+  for (const c of rest) {
+    const areas = AREAS.filter(a => has(c, a));
+    if (areas.length === 0) {
+      const listed = has(c, 'LE') || has(c, 'CC') || has(c, 'OC') || has(c, 'QSR');
+      electives.push({ c, cr: c.cr, floor: has(c, 'LE'), unlisted: !listed, why: null });
+    } else {
+      byArea[areas.length === 1 ? areas[0] : assign.get(c)].push(c);
+    }
+  }
+
+  // Within an area, the courses that meet its extra conditions are counted first; otherwise plan order.
+  const rank = (a, c) => a === 'MS' ? (has(c, 'L') && has(c, 'PB') ? 0 : has(c, 'PB') ? 1 : 2)
+    : a === 'H' ? (has(c, 'P') ? 2 : isLang100(c) ? 1 : 0) : 0;
+  const area = {};
+  for (const a of AREAS) {
+    const courses = byArea[a].slice().sort((x, y) => rank(a, x) - rank(a, y));
+    const perDisc = new Map();
+    let total = 0, perf = 0, lang = 0, labs = 0, pb = 0;
+    const counted = [];
+    for (const c of courses) {
+      const d = disciplineOf(c.c);
+      const limits = [['area', 15 - total], ['subject', 10 - (perDisc.get(d) || 0)]];
+      if (a === 'H' && has(c, 'P')) limits.push(['performance', 5 - perf]);
+      if (a === 'H' && isLang100(c)) limits.push(['language', 5 - lang]);
+      let room = c.cr, why = null;
+      for (const [name, left] of limits) if (Math.max(0, left) < room) { room = Math.max(0, left); why = name; }
+      if (room > 0) {
+        total += room;
+        perDisc.set(d, (perDisc.get(d) || 0) + room);
+        if (a === 'H' && has(c, 'P')) perf += room;
+        if (a === 'H' && isLang100(c)) lang += room;
+        if (a === 'MS' && has(c, 'L')) labs++;
+        if (a === 'MS' && has(c, 'PB')) pb += room;
+        use(c, AREA_NAME[a], room, 'area', a);
+        counted.push({ c, cr: room });
+      }
+      if (c.cr - room > 0) electives.push({ c, cr: c.cr - room, floor: true, unlisted: false, why, from: a });
+    }
+    area[a] = { total, disciplines: perDisc.size, perDisc, lang, labs, pb, counted };
+  }
+
+  let listed = 0, unlisted = 0, uncounted = 0, floor = 0;
+  for (const e of electives) {
+    if (e.unlisted) {
+      const room = Math.max(0, Math.min(e.cr, 15 - unlisted));
+      if (room > 0) { unlisted += room; use(e.c, e.c.x ? 'Unlisted elective (no attribute on file)' : 'Unlisted elective', room, 'elective', 'elect'); }
+      if (e.cr - room > 0) { uncounted += e.cr - room; use(e.c, 'Not counted: the 15-credit unlisted-elective limit is reached', e.cr - room, 'none', null); }
+    } else {
+      listed += e.cr;
+      if (e.floor) floor += e.cr;
+      const note = e.why === 'area' ? `beyond the 15 ${AREA_NAME[e.from]} credits`
+        : e.why === 'subject' ? 'over the 10-credits-per-subject limit'
+        : e.why === 'language' ? 'over the 5-credit limit for 100-level language'
+        : e.why === 'performance' ? 'over the 5-credit performance limit' : null;
+      use(e.c, 'Listed elective', e.cr, 'elective', 'elect', note ? { note } : null);
+    }
+  }
+
+  const spec = {};
+  for (const s of SPEC) {
+    const courses = rest.filter(c => has(c, s) && (uses.get(c.c) || []).some(u => u.kind !== 'none'));
+    spec[s] = { cr: courses.reduce((n, c) => n + c.cr, 0), courses };
+  }
+
+  const total = commCr + qCr + area.H.total + area.SS.total + area.MS.total + listed + unlisted;
+  let score = (sel.engl ? 0 : 5) + (sel.cc ? 0 : 5) + (sel.oc ? 0 : 5) + Math.max(0, 5 - qCr);
+  for (const a of AREAS) score += Math.max(0, 15 - area[a].total);
+  score += (area.MS.labs ? 0 : 5) + Math.max(0, 10 - area.MS.pb) + Math.max(0, 12 - floor) * 0.5;
+  for (const s of SPEC) score += Math.max(0, 3 - spec[s].cr);
+  score += Math.max(0, DEGREE_CREDITS - total) * 0.25;
+
+  return { sel, commCr, qCr, area, listed, unlisted, uncounted, floor, spec, total, uses, score };
+}
+
+/** Requirement status, keyed the same way as the sidebar rows (spec rows are W, D, G, S). */
+function requirementStatus(a) {
+  const ms = a.area.MS;
+  const r = {
+    comm: { met: !!(a.sel.engl && a.sel.cc && a.sel.oc), have: [a.sel.engl, a.sel.cc, a.sel.oc].filter(Boolean).length, need: 3, unit: 'courses' },
+    qsr: { met: a.qCr >= 5, have: Math.min(a.qCr, 5), need: 5, unit: 'cr' },
+    H: { met: a.area.H.total >= 15 && a.area.H.disciplines >= 2, have: a.area.H.total, need: 15, unit: 'cr' },
+    SS: { met: a.area.SS.total >= 15 && a.area.SS.disciplines >= 2, have: a.area.SS.total, need: 15, unit: 'cr' },
+    MS: { met: ms.total >= 15 && ms.disciplines >= 2 && ms.labs >= 1 && ms.pb >= 10, have: ms.total, need: 15, unit: 'cr' },
+    elect: { met: a.floor >= 12, have: Math.min(a.floor, 12), need: 12, unit: 'cr' },
+    total: { met: a.total >= DEGREE_CREDITS, have: Math.min(a.total, DEGREE_CREDITS), need: DEGREE_CREDITS, unit: 'cr' }
+  };
+  for (const s of SPEC) r[s] = { met: a.spec[s].cr >= 3, have: Math.min(a.spec[s].cr, 3), need: 3, unit: 'cr' };
+  return r;
+}
+
+/** "Placement into ENGL& 101" names a course; planning that course at or before this quarter shows the placement happened. */
+function placementCourse(text) {
+  const m = /placement into ([A-Z]+&?)\s?(\d{2,3})/i.exec(text || '');
+  return m ? `${m[1].toUpperCase()} ${m[2]}` : null;
+}
+
+/** One prerequisite option (groups ANDed, requirements in a group ORed) for a course in quarter `ti`; `at` maps planned codes to quarter index. */
+function prereqOption(opt, ti, at, self) {
+  const rank = { ok: 0, review: 1, blocked: 2 };
+  const res = { state: 'ok', groups: [] };
+  for (const g of opt) {
+    const gs = { state: 'blocked', met: null, review: [], missing: [], late: [] };
+    for (const r of g) {
+      if (r.x) {
+        const pc = r.k === 'Placement' ? placementCourse(r.x) : null;
+        if (pc && pc !== self && at.has(pc) && at.get(pc) <= ti) { gs.state = 'ok'; gs.met = { r, via: pc }; break; }
+        gs.review.push(r);
+        continue;
+      }
+      if (!CAT.has(r.c)) { gs.review.push(r); continue; }
+      if (at.has(r.c)) {
+        const w = at.get(r.c);
+        if (w < ti || (r.cc && w === ti)) { gs.state = 'ok'; gs.met = { r, via: r.c }; break; }
+        gs.late.push({ r, at: w });
+      } else gs.missing.push(r);
+    }
+    if (gs.state !== 'ok') gs.state = gs.review.length ? 'review' : 'blocked';
+    res.groups.push(gs);
+    if (rank[gs.state] > rank[res.state]) res.state = gs.state;
+  }
+  res.blocked = res.groups.filter(g => g.state === 'blocked').length;
+  return res;
+}
+
+function prereqStatus(c, ti, at) {
+  if (!c || !c.p) return null;
+  const rank = { ok: 0, review: 1, blocked: 2 };
+  let best = null;
+  for (const opt of c.p) {
+    const r = prereqOption(opt, ti, at, c.c);
+    if (!best || rank[r.state] < rank[best.state] || (r.state === best.state && r.blocked < best.blocked)) best = r;
+  }
+  return best;
+}
+</script>
+
+<script>
+// ---------- The page ----------
+const $ = (s, root = document) => root.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+const orList = xs => xs.length <= 1 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + ' or ' + xs[xs.length - 1];
+const uniq = xs => [...new Set(xs)];
+
+const ICONS = {
+  met: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m7.5 12.5 3 3 6-6.5"/></svg>',
+  partial: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5a9.5 9.5 0 0 1 0 19z" fill="currentColor"/></svg>',
+  none: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9.5" stroke-dasharray="3 3"/></svg>',
+  ok: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg>',
+  review: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v6M12 16.5v.5"/></svg>',
+  blocked: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m8.5 8.5 7 7M15.5 8.5l-7 7"/></svg>',
+  warn: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>',
+  close: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  planned: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3.5 2"/></svg>'
+};
+
+// ----- Plan state -----
+const SEASON_ORDER = ['Winter', 'Spring', 'Summer', 'Fall'];
+let termSeq = 0;
+const newTermId = () => 'q' + (++termSeq);
+const termName = t => `${t.season} ${t.year}`;
+function nextTerm(t, summer) {
+  if (t.season === 'Fall') return { season: 'Winter', year: t.year + 1 };
+  if (t.season === 'Winter') return { season: 'Spring', year: t.year };
+  if (t.season === 'Spring') return summer ? { season: 'Summer', year: t.year } : { season: 'Fall', year: t.year };
+  return { season: 'Fall', year: t.year };
+}
+function parseTerm(name) { const [season, year] = name.split(' '); return { season, year: +year }; }
+function sequence(start, count) {
+  const out = []; let t = parseTerm(start);
+  for (let i = 0; i < count; i++) { out.push({ id: newTermId(), season: t.season, year: t.year }); t = nextTerm(t, false); }
+  return out;
+}
+const blankPlan = () => ({ start: 'Fall 2026', load: 15, terms: sequence('Fall 2026', 6), placed: [] });
+
+let S = blankPlan();
+let undoStack = [];
+const ui = { target: null, filter: 'needed', query: '', openerKey: null, flash: null, details: null, lastFinish: null, tab: 'plan' };
+let view = null;
+
+const idxOf = id => S.terms.findIndex(t => t.id === id);
+const crOf = p => (p.cr !== undefined ? p.cr : CAT.get(p.code).cr);
+const placedOf = code => S.placed.find(p => p.code === code);
+function termAt(i) {
+  if (i < S.terms.length) return S.terms[Math.max(0, i)];
+  let t = S.terms[S.terms.length - 1];
+  for (let k = S.terms.length; k <= i; k++) t = nextTerm(t, false);
+  return t;
+}
+function ensureTerm(i) { while (S.terms.length <= i) { const t = nextTerm(S.terms[S.terms.length - 1], false); S.terms.push({ id: newTermId(), ...t }); } }
+
+function evaluate() {
+  const order = S.placed.map((p, i) => ({ p, i, ti: idxOf(p.term) })).sort((a, b) => a.ti - b.ti || a.i - b.i).map(x => x.p);
+  const a = audit(order.map(p => p.code), new Map(order.map(p => [p.code, crOf(p)])));
+  const at = new Map(order.map(p => [p.code, idxOf(p.term)]));
+  const pre = new Map(order.map(p => [p.code, prereqStatus(CAT.get(p.code), idxOf(p.term), at)]));
+  const credits = S.terms.map(t => S.placed.filter(p => p.term === t.id).reduce((n, p) => n + crOf(p), 0));
+  // The same audit over completed courses only: a requirement it meets is done, not just planned.
+  const doneOrder = order.filter(p => p.done);
+  const earned = audit(doneOrder.map(p => p.code), new Map(doneOrder.map(p => [p.code, crOf(p)])));
+  return { order, a, rs: requirementStatus(a), earned, ers: requirementStatus(earned), at, pre, credits };
+}
+
+// ----- What a course counts toward -----
+function usesOf(code) { return (view.a.uses.get(code) || []); }
+function usesSummary(code) {
+  const u = usesOf(code);
+  if (!u.length) return { text: 'Not counted toward the degree', none: true };
+  const parts = u.map(x => u.length > 1 ? `${x.kind === 'none' ? 'Not counted' : x.label} (${x.cr} cr)` : x.label);
+  return { text: parts.join(' + '), none: u.every(x => x.kind === 'none') };
+}
+function countsPhrase(code) {
+  const u = usesOf(code).filter(x => x.kind !== 'none');
+  if (!u.length) return "It doesn't count toward a requirement.";
+  const first = u[0];
+  const name = first.key === 'comm' ? 'Communication' : first.key === 'elect' ? 'electives' : first.label;
+  const r = first.key && view.rs[first.key];
+  let s = `It counts toward ${name}`;
+  if (r && first.key !== 'elect') s += r.met ? ', which is now covered' : `: ${r.have} of ${r.need}${r.unit === 'cr' ? ' credits' : ' courses'}`;
+  return s + '.';
+}
+function helpsWith(c) {
+  if (placedOf(c.c)) return [];
+  const a = view.a, rs = view.rs, out = [];
+  if (!rs.comm.met) {
+    if (c.c === 'ENGL& 101' && !a.sel.engl) out.push('Communication');
+    else if (has(c, 'CC') && c.c !== 'ENGL& 101' && !a.sel.cc) out.push('Communication');
+    else if (has(c, 'OC') && !a.sel.oc) out.push('Communication');
+  }
+  if (!rs.qsr.met && has(c, 'QSR')) out.push('Quantitative reasoning');
+  for (const k of AREAS) {
+    if (rs[k].met || !has(c, k)) continue;
+    const ar = a.area[k];
+    if ((ar.perDisc.get(disciplineOf(c.c)) || 0) >= 10) continue;
+    if (k === 'H' && isLang100(c) && ar.lang >= 5) continue;
+    if (k === 'MS' && ar.total >= 15 && !((ar.labs === 0 && has(c, 'L')) || (ar.pb < 10 && has(c, 'PB')))) continue;
+    out.push(k === 'MS' && ar.labs === 0 && has(c, 'L') ? 'Math & science (lab)' : AREA_NAME[k]);
+  }
+  for (const s of SPEC) if (!rs[s].met && has(c, s)) out.push(SPEC_NAME[s]);
+  return out;
+}
+
+// ----- Prerequisite wording -----
+function reqWords(r) {
+  if (r.x) return r.x;
+  let s = r.c;
+  if (r.g) s += ` with ${r.g} or better`;
+  if (r.cc) s += ' (can be taken the same quarter)';
+  if (!CAT.has(r.c)) s += numberOf(r.c) < 100 ? ' — pre-college course, not in this demo' : ' — not in this demo';
+  return s;
+}
+function shortPrereq(c) {
+  if (!c.p) return c.a && /advisory/i.test(c.a) ? 'No prerequisites (advisory note)' : 'No prerequisites';
+  const opt = c.p[0];
+  const groups = opt.map(g => g.map(r => r.x ? (r.k === 'Placement' ? r.x.replace(/^Placement/, 'placement') : r.x) : r.c + (r.g ? ` (${r.g})` : '')).join(' or '));
+  let s = 'Prereq: ' + groups.join('; ');
+  if (c.p.length > 1) s += '; or another option';
+  return s.length > 110 ? s.slice(0, 107).trimEnd() + '…' : s;
+}
+function clip(s, n) { return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s; }
+
+/** The line under a planned course, and the one-click fix where there is one. */
+function statusLine(code) {
+  const st = view.pre.get(code);
+  if (!st || (placedOf(code) || {}).done) return null;
+  const ti = view.at.get(code);
+  if (st.state === 'ok') {
+    const via = uniq(st.groups.map(g => g.met && g.met.via).filter(Boolean));
+    return { cls: 'ok', text: via.length ? `Prerequisites in the plan: ${via.join(', ')}` : 'Prerequisites met' };
+  }
+  const g = st.groups.find(x => x.state === 'blocked') || st.groups.find(x => x.state === 'review');
+  const lateTarget = () => {
+    let to = -1;
+    for (const gr of st.groups) {
+      if (gr.state === 'ok' || !gr.late.length) continue;
+      to = Math.max(to, Math.min(...gr.late.map(l => l.at + (l.r.cc ? 0 : 1))));
+    }
+    return to;
+  };
+  const fixFor = gr => {
+    if (gr.missing.length) {
+      const r = gr.missing[0];
+      const target = ti > 0 ? ti - 1 : (r.cc ? ti : -1);
+      return target >= 0
+        ? { kind: 'add', code: r.c, to: target, label: `Add ${r.c} to ${termName(termAt(target))}` }
+        : { kind: 'move', to: ti + 1, label: `Move to ${termName(termAt(ti + 1))} so ${r.c} can come first` };
+    }
+    if (gr.late.length) {
+      const to = lateTarget();
+      return { kind: 'move', to, label: `Move to ${termName(termAt(to))}` };
+    }
+    return null;
+  };
+  if (g.state === 'blocked') {
+    if (g.late.length) {
+      const l = g.late[0];
+      return { cls: 'blocked', text: `${l.r.c} is planned for ${termName(S.terms[l.at])}. This course has to come ${l.r.cc ? 'in the same quarter or after it' : 'after it'}.`, fix: fixFor(g) };
+    }
+    const missingGroups = st.groups.filter(x => x.state === 'blocked' && x.missing.length && !x.late.length);
+    const phrase = missingGroups.map(x => orList(uniq(x.missing.map(r => r.c)))).join(' and ');
+    const same = missingGroups.every(x => x.missing.every(r => r.cc));
+    return { cls: 'blocked', text: `Needs ${phrase} ${same ? 'in this quarter or earlier' : missingGroups.length > 1 ? 'in earlier quarters' : 'in an earlier quarter'}.`, fix: fixFor(g) };
+  }
+  const r = g.review[0];
+  let text = 'Check: ' + clip(r.x ? r.x : `${r.c}${r.g ? ` (${r.g} or better)` : ''}${numberOf(r.c) < 100 ? ', a pre-college course' : ''}`, 90);
+  if (g.missing.length) text += `, or plan ${g.missing[0].c} first`;
+  else if (g.late.length) text += `, or move it after ${g.late[0].r.c}`;
+  return { cls: 'review', text: text + '.', fix: fixFor(g) };
+}
+
+// ----- Rendering -----
+const board = $('#terms');
+const catList = $('#cat-list');
+
+function refresh(focusKey) {
+  const ae = document.activeElement;
+  const key = focusKey || (ae && ae.dataset ? ae.dataset.key : null) || null;
+  view = evaluate();
+  ui.help = new Map(COURSES.map(c => [c.c, helpsWith(c)]));
+  if (!ui.target || idxOf(ui.target) < 0) ui.target = defaultTarget();
+  renderSummary();
+  renderBoard();
+  renderCatalog();
+  if (ui.tab === 'audit') renderAudit();
+  $('#start-term').value = S.start;
+  $('#load').value = String(S.load);
+  $('#btn-undo').disabled = undoStack.length === 0;
+  const dlgFocus = $('#details').open && $('#details').contains(ae) ? ae.id : null;
+  if (ui.details && $('#details').open) renderDetails(ui.details);
+  if (dlgFocus && document.getElementById(dlgFocus)) document.getElementById(dlgFocus).focus();
+  if (key && !$('#details').open) {
+    const el = document.querySelector(`[data-key="${CSS.escape(key)}"]`);
+    if (el && el !== document.activeElement) el.focus();
+  }
+}
+
+function defaultTarget() {
+  const i = S.terms.findIndex((t, k) => (view ? view.credits[k] : 0) < S.load);
+  return S.terms[i >= 0 ? i : S.terms.length - 1].id;
+}
+
+const REQ_ROWS = [
+  { key: 'comm', name: 'Communication', filter: 'comm' },
+  { key: 'qsr', name: 'Quantitative reasoning', filter: 'qsr' },
+  { key: 'H', name: 'Humanities', filter: 'H' },
+  { key: 'SS', name: 'Social sciences', filter: 'SS' },
+  { key: 'MS', name: 'Math & science', filter: 'MS' },
+  { key: 'elect', name: 'Electives', filter: 'elect' },
+  { key: 'spec', name: 'Specialty courses', filter: 'spec' },
+  { key: 'total', name: '90 credits', filter: 'needed' }
+];
+
+function buildReqs() {
+  $('#reqs').innerHTML = REQ_ROWS.map(r => `
+    <li class="req" id="req-${r.key}" data-state="none">
+      <button class="req-head" aria-expanded="false" aria-controls="req-body-${r.key}" data-action="toggle-req" data-req="${r.key}">
+        <span class="req-icon"></span>
+        <span class="req-name">${r.name}</span>
+        <span class="req-prog num"></span>
+        <span class="req-bar" aria-hidden="true"><span></span></span>
+      </button>
+      <div class="req-body" id="req-body-${r.key}" hidden></div>
+    </li>`).join('');
+}
+
+function reqRowStatus(key) {
+  const rs = view.rs, ers = view.ers;
+  if (key === 'spec') {
+    const met = SPEC.filter(s => rs[s].met).length;
+    const done = SPEC.every(s => ers[s].met);
+    return { met: met === 4, done, have: met, need: 4, text: done ? 'Done' : met === 4 ? 'Planned' : `${met} of 4`, frac: met / 4 };
+  }
+  const r = rs[key];
+  const done = ers[key].met;
+  const text = done ? 'Done' : r.met ? 'Planned' : r.unit === 'courses' ? `${r.have} of ${r.need}` : `${r.have} of ${r.need} cr`;
+  let frac = r.have / r.need;
+  if (!r.met && frac >= 1) frac = 0.95;
+  return { met: r.met, done, have: r.have, need: r.need, text, frac };
+}
+
+function courseLine(c, cr, extra) {
+  return `<li><span class="ok-dot" aria-hidden="true">✓</span><span><span class="mono">${esc(c.c)}</span> ${esc(c.t)}${cr != null ? ` · ${cr} cr` : ''}${extra ? ` · ${esc(extra)}` : ''}</span></li>`;
+}
+function missingLine(text) { return `<li><span class="no-dot" aria-hidden="true">○</span><span>${esc(text)}</span></li>`; }
+
+function reqBody(key) {
+  const a = view.a, rs = view.rs;
+  const find = (label, filter) => `<button class="link-btn" data-action="find" data-filter="${filter}">${label}</button>`;
+  if (key === 'comm') {
+    const s = a.sel;
+    return `<p>Three courses: ENGL&amp; 101, a second composition course (CC) and an oral communication course (OC).</p><ul>
+      ${s.engl ? courseLine(s.engl, s.engl.cr) : missingLine('ENGL& 101 English Composition I')}
+      ${s.cc ? courseLine(s.cc, s.cc.cr) : missingLine('A second composition course, such as ENGL 201')}
+      ${s.oc ? courseLine(s.oc, s.oc.cr) : missingLine('An oral communication course, such as CMST& 220')}
+      </ul>${rs.comm.met ? '' : find('Show communication courses', 'comm')}`;
+  }
+  if (key === 'qsr') {
+    return `<p>5 credits of quantitative or symbolic reasoning, such as MATH&amp; 107, MATH&amp; 146, MATH&amp; 141 or PHIL&amp; 117. A course used here doesn't also count for Math &amp; science.</p><ul>
+      ${a.sel.q.length ? a.sel.q.map(c => courseLine(c, c.cr)).join('') : missingLine('No QSR course planned')}</ul>${rs.qsr.met ? '' : find('Show QSR courses', 'qsr')}`;
+  }
+  if (AREAS.includes(key)) {
+    const ar = a.area[key];
+    const rule = key === 'H' ? '15 credits from at least two subjects, no more than 10 from one. Only 5 credits of performance courses and 5 credits of 100-level world language count here.'
+      : key === 'SS' ? '15 credits from at least two subjects, no more than 10 from one.'
+      : '15 credits from at least two subjects, no more than 10 from one, including at least one lab course and 10 credits of physical or biological science.';
+    let extra = `<p class="num">Subjects: ${ar.disciplines}${ar.disciplines < 2 ? ' of 2' : ''}`;
+    if (key === 'MS') extra += ` · Lab: ${ar.labs ? 'yes' : 'not yet'} · Physical/biological: ${ar.pb} of 10 cr`;
+    extra += '</p>';
+    return `<p>${rule}</p>${extra}<ul>${ar.counted.length ? ar.counted.map(x => courseLine(x.c, x.cr)).join('') : missingLine(`No ${AREA_NAME[key].toLowerCase()} courses planned`)}</ul>${rs[key].met ? '' : find(`Show ${AREA_NAME[key].toLowerCase()} courses`, key)}`;
+  }
+  if (key === 'elect') {
+    return `<p>At least 12 elective credits from humanities, social science, math/science or listed-elective (LE) courses. Credits beyond an area's 15 move here. Up to 15 unlisted-elective (UE) credits count.</p>
+      <p class="num">Qualifying elective credits: ${a.floor} of 12 · Listed: ${a.listed} cr · Unlisted: ${a.unlisted} of 15 cr${a.uncounted ? ` · Not counted: ${a.uncounted} cr` : ''}</p>${rs.elect.met ? '' : find('Show elective courses', 'elect')}`;
+  }
+  if (key === 'spec') {
+    return `<p>At least 3 credits each. Courses used for Communication or Quantitative reasoning don't count, and one course can meet several.</p><ul>
+      ${SPEC.map(s => rs[s].met
+        ? `<li><span class="ok-dot" aria-hidden="true">✓</span><span>${SPEC_NAME[s]}: <span class="mono">${a.spec[s].courses.map(c => esc(c.c)).join(', ')}</span></span></li>`
+        : `<li><span class="no-dot" aria-hidden="true">○</span><span>${SPEC_NAME[s]} (${s}) — ${find('show courses', s)}</span></li>`).join('')}</ul>`;
+  }
+  return `<p>90 college-level credits that count toward the degree. ${a.uncounted ? `${a.uncounted} planned credits don't count because of the unlisted-elective limit.` : ''}</p>
+    <p class="num">Counting now: ${a.total} of 90 cr</p>`;
+}
+
+function renderSummary() {
+  const a = view.a, rs = view.rs;
+  const C = 2 * Math.PI * 50;
+  const frac = Math.min(1, a.total / DEGREE_CREDITS);
+  $('#ring-fill').setAttribute('stroke-dashoffset', (C * (1 - frac)).toFixed(2));
+  $('#ring-done').setAttribute('stroke-dashoffset', (C * (1 - Math.min(1, view.earned.total / DEGREE_CREDITS))).toFixed(2));
+  $('#ring-num').textContent = a.total;
+  $('#leg-done').textContent = view.earned.total;
+  $('#leg-planned').textContent = Math.max(0, a.total - view.earned.total);
+  const plannedCr = view.credits.reduce((x, y) => x + y, 0);
+  $('#stat-courses').textContent = S.placed.length;
+  $('#stat-credits').textContent = plannedCr;
+  const rowsMet = REQ_ROWS.filter(r => reqRowStatus(r.key).met).length;
+  const rowsDone = REQ_ROWS.filter(r => reqRowStatus(r.key).done).length;
+  $('#stat-reqs').textContent = `${rowsDone} done · ${rowsMet - rowsDone} planned · of ${REQ_ROWS.length}`;
+
+  for (const r of REQ_ROWS) {
+    const st = reqRowStatus(r.key);
+    const li = $('#req-' + r.key);
+    const state = st.done ? 'met' : st.met ? 'planned' : st.have > 0 ? 'partial' : 'none';
+    li.dataset.state = state;
+    li.querySelector('.req-icon').innerHTML = ICONS[state];
+    li.querySelector('.req-prog').textContent = st.text;
+    li.querySelector('.req-bar > span').style.width = (st.frac * 100).toFixed(1) + '%';
+    li.querySelector('.req-head').setAttribute('aria-label', `${r.name}: ${st.done ? 'done' : st.met ? 'fully planned' : st.text.replace(' cr', ' credits')}`);
+    const body = li.querySelector('.req-body');
+    if (!body.hidden) body.innerHTML = reqBody(r.key);
+  }
+
+  const f = finishInfo();
+  $('#finish-val').textContent = f.text;
+  $('#finish-sub').textContent = f.sub;
+  if (ui.lastFinish !== null && ui.lastFinish !== f.text) {
+    const el = $('#finish'); el.classList.remove('changed'); void el.offsetWidth; el.classList.add('changed');
+  }
+  ui.lastFinish = f.text;
+
+  renderChecks();
+}
+
+function finishInfo() {
+  const rs = view.rs;
+  const open = REQ_ROWS.filter(r => !reqRowStatus(r.key).met).length;
+  const lastIdx = view.order.length ? Math.max(...view.order.map(p => idxOf(p.term))) : -1;
+  if (open === 0) return { text: termName(S.terms[lastIdx]), sub: 'Every DTA requirement is in the plan.' };
+  const remaining = Math.max(0, DEGREE_CREDITS - view.a.total);
+  if (remaining === 0) return { text: 'Not yet', sub: `The plan has 90 credits that count, but ${plural(open, 'requirement')} ${open === 1 ? 'is' : 'are'} still open.` };
+  const quarters = Math.ceil(remaining / S.load);
+  let t = lastIdx >= 0 ? S.terms[lastIdx] : S.terms[0];
+  for (let k = lastIdx >= 0 ? quarters : quarters - 1; k > 0; k--) t = nextTerm(t, false);
+  return { text: `About ${termName(t)}`, sub: `${remaining} credits to go at ${S.load} a quarter, without summer.` };
+}
+
+function renderChecks() {
+  const items = [];
+  for (const p of view.order) {
+    const line = statusLine(p.code);
+    if (line && line.cls !== 'ok') items.push({ code: p.code, cls: line.cls, text: line.text, term: termName(S.terms[idxOf(p.term)]) });
+  }
+  const heavy = S.terms.map((t, i) => ({ t, cr: view.credits[i] })).filter(x => x.cr > 18);
+  const blocked = items.filter(i => i.cls === 'blocked');
+  const review = items.filter(i => i.cls === 'review');
+  let html = '';
+  if (!items.length && !heavy.length) {
+    html = `<p class="muted">${S.placed.length ? 'No prerequisite or load problems in this plan.' : 'Prerequisite, placement and heavy-quarter checks will show here as you add courses.'}</p>`;
+  } else {
+    html = '<ul class="checks">';
+    for (const i of [...blocked, ...review]) {
+      html += `<li><button class="check-item ${i.cls}" data-action="open" data-code="${esc(i.code)}" data-key="check:${esc(i.code)}">${ICONS[i.cls]}<span class="ci-text"><span class="mono">${esc(i.code)}</span> · ${esc(i.term)}<br>${esc(i.text)}</span></button></li>`;
+    }
+    for (const h of heavy) html += `<li><button class="check-item review" data-action="goto-term" data-term="${h.t.id}">${ICONS.warn}<span class="ci-text">${esc(termName(h.t))} has ${h.cr} credits, a heavy quarter.</span></button></li>`;
+    html += '</ul>';
+  }
+  $('#checks').innerHTML = html;
+}
+
+function academicYear(t) { return t.season === 'Fall' ? t.year : t.year - 1; }
+function renderBoard() {
+  const years = [];
+  for (const t of S.terms) {
+    const ay = academicYear(t);
+    let y = years[years.length - 1];
+    if (!y || y.ay !== ay) { y = { ay, terms: [] }; years.push(y); }
+    y.terms.push(t);
+  }
+  const first = academicYear(S.terms[0]);
+  let html = '';
+  if (!S.placed.length) {
+    const t0 = S.terms[0];
+    html += `<section class="empty" aria-labelledby="empty-title">
+      <h2 id="empty-title">This DTA plan is empty</h2>
+      <p>Most students start with English Composition I. Add courses from the catalog, or drag them onto a quarter. The progress panel and the checks update as you go.</p>
+      <div class="empty-actions">
+        <button class="btn btn-primary" data-action="quick-add" data-code="ENGL& 101" data-term="${t0.id}" data-key="empty-engl">Add ENGL&amp; 101 to ${esc(termName(t0))}</button>
+        <button class="btn" data-action="browse" data-key="empty-browse">Browse courses</button>
+        <button class="btn" data-action="sample" data-key="empty-sample">Fill a sample plan</button>
+      </div></section>`;
+  }
+  for (const y of years) {
+    const spring = y.terms.find(t => t.season === 'Spring');
+    const canSummer = spring && !y.terms.some(t => t.season === 'Summer');
+    html += `<section class="year" aria-labelledby="year-${y.ay}">
+      <div class="year-head"><h2 class="year-label" id="year-${y.ay}">Year ${y.ay - first + 1} <span class="year-span">${y.ay}–${String(y.ay + 1).slice(2)}</span></h2>
+      ${canSummer ? `<button class="link-btn" data-action="add-summer" data-term="${spring.id}" data-key="summer:${spring.id}">+ Add Summer ${spring.year}</button>` : ''}</div>
+      <div class="year-grid">${y.terms.map(termCard).join('')}</div></section>`;
+  }
+  html += `<div class="board-foot"><button class="btn" data-action="add-term" data-key="add-term">+ Add a quarter</button>
+    <span class="muted">Adds ${esc(termName(nextTerm(S.terms[S.terms.length - 1], false)))}</span></div>`;
+  board.innerHTML = html;
+  $('#plan-sub').textContent = `${plural(S.terms.length, 'quarter')}, ${termName(S.terms[0])} to ${termName(S.terms[S.terms.length - 1])}`;
+
+  if (ui.flash) {
+    const el = board.querySelector(`.tile[data-code="${CSS.escape(ui.flash)}"]`);
+    if (el) { el.classList.add('is-new'); setTimeout(() => el.classList.remove('is-new'), 1800); }
+    ui.flash = null;
+  }
+}
+
+function termCard(t) {
+  const i = idxOf(t.id);
+  const cr = view.credits[i];
+  const list = S.placed.filter(p => p.term === t.id);
+  const heavy = cr > 18;
+  return `<section class="term" data-term="${t.id}" aria-labelledby="h-${t.id}">
+    <div class="term-head"><h3 id="h-${t.id}">${esc(termName(t))}</h3>
+      <span class="term-cr ${heavy ? 'heavy' : ''}">${cr} of ${S.load} cr</span></div>
+    <div class="load ${heavy ? 'heavy' : ''}" aria-hidden="true"><span style="width:${Math.min(100, cr / S.load * 100).toFixed(0)}%"></span></div>
+    ${heavy ? `<p class="term-warn">${ICONS.warn}<span>${cr} credits is a heavy quarter. Check the college's credit-overload rule.</span></p>` : ''}
+    ${list.length ? `<ul class="tiles">${list.map(tile).join('')}</ul>` : ''}
+    <div class="term-actions">
+      <button class="btn btn-add" data-action="add-to" data-term="${t.id}" data-key="add:${t.id}">+ Add course</button>
+      ${!list.length && S.terms.length > 1 && (S.placed.length || i === S.terms.length - 1) ? `<button class="link-btn" data-action="remove-term" data-term="${t.id}" data-key="rm:${t.id}" aria-label="Remove ${esc(termName(t))}">Remove</button>` : ''}
+    </div>
+    <span class="drop-hint" aria-hidden="true">Drop here</span>
+  </section>`;
+}
+
+function tile(p) {
+  const c = CAT.get(p.code);
+  const u = usesSummary(c.c);
+  const line = statusLine(c.c);
+  const specs = SPEC.filter(s => view.a.spec[s].courses.some(x => x.c === c.c));
+  const cr = crOf(p);
+  const label = `${c.c}, ${c.t}, ${cr} credits${c.min !== undefined ? ` (${creditRange(c)} allowed)` : ''}. ${u.text}.${line ? ' ' + line.text : ''} Open details.`;
+  const doneId = `done-${c.c.replace(/[^A-Za-z0-9]/g, '')}`;
+  return `<li class="tile${p.done ? ' is-done' : ''}" draggable="true" data-code="${esc(c.c)}">
+    <button class="tile-main" data-action="open" data-code="${esc(c.c)}" data-key="tile:${esc(c.c)}" aria-label="${esc((p.done ? 'Completed. ' : '') + label)}">
+      <span class="tile-top"><span class="code">${esc(c.c)}</span>${p.done ? `<span class="done-badge">${ICONS.ok}Completed</span>` : ''}<span class="cr">${cr} cr</span></span>
+      <span class="t-title">${esc(c.t)}</span>
+      <span class="uses ${u.none ? 'none' : ''}">${esc(u.text)}</span>
+      ${specs.length ? `<span class="chips">${specs.map(s => `<span class="chip spec" title="${SPEC_NAME[s]}">${s}</span>`).join('')}</span>` : ''}
+      ${line ? `<span class="status ${line.cls}">${ICONS[line.cls]}<span>${esc(line.text)}</span></span>` : ''}
+    </button>
+    <div class="tile-foot">
+      <label class="done-pick" for="${doneId}"><input type="checkbox" id="${doneId}" data-change="done" data-code="${esc(c.c)}" data-key="done:${esc(c.c)}" ${p.done ? 'checked' : ''}>Completed<span class="sr-only"> ${esc(c.c)}</span></label>
+      ${c.min !== undefined ? creditPicker(c, cr, 'tile') : ''}
+    </div>
+    ${line && line.fix ? `<button class="btn btn-sm fix" data-action="fix" data-code="${esc(c.c)}" data-key="fix:${esc(c.c)}">${esc(line.fix.label)}</button>` : ''}
+  </li>`;
+}
+
+/** A credits menu for a variable-credit course; `where` keeps the card's and the dialog's ids apart. */
+function creditPicker(c, cr, where) {
+  const id = `cr-${where}-${c.c.replace(/[^A-Za-z0-9]/g, '')}`;
+  const options = [];
+  for (let n = c.min; n <= c.max; n++) options.push(`<option value="${n}" ${n === cr ? 'selected' : ''}>${n}</option>`);
+  return `<div class="cr-pick"><label for="${id}">Credits (${creditRange(c)})</label>
+    <select id="${id}" data-change="credits" data-code="${esc(c.c)}" data-key="${where}-cr:${esc(c.c)}">${options.join('')}</select></div>`;
+}
+
+// ----- Catalog -----
+const FILTERS = [
+  ['needed', 'Still needed'], ['all', 'All'], ['comm', 'Communication'], ['qsr', 'Quantitative'], ['H', 'Humanities'],
+  ['SS', 'Social sciences'], ['MS', 'Math & science'], ['lab', 'Lab science'], ['elect', 'Electives'],
+  ['spec', 'Specialty'], ['W', 'Writing'], ['D', 'Diversity'], ['G', 'Global'], ['S', 'Sustainability']
+];
+function matchesFilter(c, f) {
+  switch (f) {
+    case 'all': return true;
+    case 'needed': return ui.help.get(c.c).length > 0;
+    case 'comm': return has(c, 'CC') || has(c, 'OC');
+    case 'qsr': return has(c, 'QSR');
+    case 'lab': return has(c, 'L');
+    case 'elect': return has(c, 'LE') || has(c, 'UE');
+    case 'spec': return SPEC.some(s => has(c, s));
+    default: return has(c, f);
+  }
+}
+function renderFilters() {
+  $('#filters').innerHTML = FILTERS.map(([k, l]) => `<button class="filter" data-action="filter" data-filter="${k}" data-key="filter:${k}" aria-pressed="${ui.filter === k}">${l}</button>`).join('');
+}
+function renderCatalog() {
+  const sel = $('#cat-term');
+  sel.innerHTML = S.terms.map((t, i) => `<option value="${t.id}" ${t.id === ui.target ? 'selected' : ''}>${esc(termName(t))} · ${view.credits[i]} cr</option>`).join('');
+  const ti = idxOf(ui.target);
+  const cr = view.credits[ti];
+  $('#cat-load').textContent = `${cr} of ${S.load} credits`;
+  const full = $('#cat-full');
+  const next = S.terms.findIndex((t, k) => k > ti && view.credits[k] < S.load);
+  if (cr >= S.load && next >= 0) {
+    full.hidden = false;
+    full.innerHTML = `<span>${esc(termName(S.terms[ti]))} is full at ${S.load} credits.</span><button class="link-btn" data-action="target" data-term="${S.terms[next].id}" data-key="next-target">Switch to ${esc(termName(S.terms[next]))}</button>`;
+  } else full.hidden = true;
+
+  renderFilters();
+  const q = ui.query.trim().toLowerCase().replace(/\s+/g, ' ');
+  const qn = q.replace(/[\s&]/g, '');
+  let rows = COURSES.filter(c => matchesFilter(c, ui.filter));
+  if (q) rows = rows.filter(c => c.c.toLowerCase().replace(/[\s&]/g, '').includes(qn) || c.t.toLowerCase().includes(q));
+  if (ui.filter === 'needed') rows.sort((x, y) => ui.help.get(y.c).length - ui.help.get(x.c).length);
+  const filterName = FILTERS.find(f => f[0] === ui.filter)[1];
+  $('#cat-count').textContent = `${plural(rows.length, 'course')}${ui.filter === 'all' ? '' : ' · ' + filterName}${q ? ` matching “${ui.query.trim()}”` : ''}`;
+  if (!rows.length) {
+    catList.innerHTML = `<li class="cat-empty">${ui.filter === 'needed' && !q ? 'Every requirement that a single course can help with is planned. Choose <strong>All</strong> or <strong>Electives</strong> to keep adding credits.' : 'No courses match. Try a shorter search or another filter.'}</li>`;
+    return;
+  }
+  const target = termName(S.terms[ti]);
+  catList.innerHTML = rows.map(c => {
+    const p = placedOf(c.c);
+    const help = ui.help.get(c.c);
+    const where = p ? termName(S.terms[idxOf(p.term)]) : null;
+    return `<li class="crow" ${p ? '' : 'draggable="true"'} data-code="${esc(c.c)}">
+      <button class="crow-info" data-action="info" data-code="${esc(c.c)}" data-key="info:${esc(c.c)}" aria-label="${esc(`${c.c}, ${c.t}, ${creditRange(c)} credits. Course details`)}">
+        <span class="crow-top"><span class="code">${esc(c.c)}</span><span class="cr">${creditRange(c)} cr</span></span>
+        <span class="crow-title">${esc(c.t)}</span>
+        <span class="chips">${c.d.map(d => `<span class="chip" title="${esc(DESIGNATION[d] || d)}">${d}</span>`).join('')}</span>
+        <span class="crow-meta">${esc(shortPrereq(c))}</span>
+        ${c.x ? '<span class="crow-meta">No transfer attribute on file: counts as an unlisted elective.</span>' : ''}
+        ${help.length ? `<span class="crow-help">Counts toward ${esc(help.join(', '))}</span>` : ''}
+      </button>
+      ${p
+        ? `<button class="btn btn-sm btn-quiet" data-action="open" data-code="${esc(c.c)}" data-key="cat:${esc(c.c)}" aria-label="${esc(`${c.c} is planned for ${where}. Open details`)}">In ${esc(where)}</button>`
+        : `<button class="btn btn-sm" data-action="cat-add" data-code="${esc(c.c)}" data-key="cat:${esc(c.c)}" aria-label="${esc(`Add ${c.c} to ${target}`)}">Add</button>`}
+    </li>`;
+  }).join('');
+}
+
+// ----- Details dialog -----
+function renderDetails(code) {
+  const c = CAT.get(code);
+  const p = placedOf(code);
+  const dlg = $('#details');
+  const ti = p ? idxOf(p.term) : -1;
+  let usesHtml = '';
+  if (p) {
+    const u = usesOf(code);
+    const specs = SPEC.filter(s => view.a.spec[s].courses.some(x => x.c === c.c));
+    usesHtml = `<section class="dlg-sec"><h3>Counts toward</h3><ul>
+      ${u.length ? u.map(x => `<li>${x.kind === 'none' ? ICONS.warn : ICONS.ok}<span>${esc(x.label)} · ${x.cr} cr${x.note ? ` (${esc(x.note)})` : ''}</span></li>`).join('') : `<li>${ICONS.warn}<span>Nothing yet</span></li>`}
+      ${specs.map(s => `<li>${ICONS.ok}<span>${SPEC_NAME[s]} specialty</span></li>`).join('')}</ul></section>`;
+  }
+  let preHtml = '<p>No prerequisites listed.</p>';
+  if (c.p) {
+    preHtml = c.p.map((opt, oi) => {
+      const st = p ? prereqOption(opt, ti, view.at, c.c) : null;
+      const groups = opt.map((g, gi) => {
+        const gs = st ? st.groups[gi] : null;
+        const icon = gs ? ICONS[gs.state] : '';
+        const text = g.map(reqWords).join(' or ');
+        const tail = gs ? (gs.state === 'ok' ? ` — met${gs.met.via && gs.met.r.x ? ` (${gs.met.via} is planned)` : ''}` : gs.state === 'review' ? ' — check with the student' : gs.late.length ? ' — planned too late' : ' — not in the plan') : '';
+        return `<li>${icon}<span>${esc(text)}${esc(tail)}</span></li>`;
+      }).join('');
+      return `${c.p.length > 1 ? `<p class="opt-label">${oi === 0 ? 'Either' : 'Or'}</p>` : ''}<ul>${groups}</ul>`;
+    }).join('');
+    if (c.p.some(o => o.length > 1)) preHtml = `<p class="muted">All of the lines in an option are needed.</p>` + preHtml;
+  }
+  const adv = c.a ? `<p class="advisory">${esc(c.a)}</p>` : '';
+  const planHtml = p ? `<section class="dlg-sec"><h3>In this plan</h3>
+      <div class="dlg-row"><label class="sr-only" for="move-term">Move ${esc(code)} to</label>
+        <select id="move-term">${S.terms.map(t => `<option value="${t.id}" ${t.id === p.term ? 'selected' : ''}>${esc(termName(t))}</option>`).join('')}</select>
+        <button class="btn" data-action="move" data-code="${esc(code)}">Move</button></div>
+      <div class="cr-pick"><label for="dlg-status">Status</label>
+        <select id="dlg-status" data-change="status" data-code="${esc(code)}"><option value="planned" ${p.done ? '' : 'selected'}>Planned</option><option value="done" ${p.done ? 'selected' : ''}>Completed</option></select></div>
+      ${c.min !== undefined ? creditPicker(c, crOf(p), 'dlg') : ''}</section>`
+    : `<section class="dlg-sec"><h3>Add to the plan</h3>
+      <div class="dlg-row"><label class="sr-only" for="add-term">Add ${esc(code)} to</label>
+        <select id="add-term">${S.terms.map(t => `<option value="${t.id}" ${t.id === ui.target ? 'selected' : ''}>${esc(termName(t))}</option>`).join('')}</select>
+        <button class="btn btn-primary" data-action="dlg-add" data-code="${esc(code)}">Add</button></div></section>`;
+  dlg.innerHTML = `<div class="dlg">
+    <div class="dlg-head"><div><span class="code">${esc(code)} · ${p ? crOf(p) : creditRange(c)} credits${p && c.min !== undefined ? ` (${creditRange(c)} allowed)` : ''}</span><h2 id="dlg-title">${esc(c.t)}</h2></div>
+      <button class="icon-btn" data-action="close-details" aria-label="Close">${ICONS.close}</button></div>
+    <div class="dlg-body">
+      ${planHtml}
+      ${usesHtml}
+      <section class="dlg-sec"><h3>Designations</h3><div class="chips">${c.d.map(d => `<span class="chip">${d}</span>`).join('')}</div>
+        <p class="muted">${c.x ? 'The catalog appendix lists no transfer attribute for this course, so the demo counts it as an unlisted elective. Check the course description before relying on it.' : c.d.map(d => DESIGNATION[d] || d).join(' · ')}</p>
+        ${c.min !== undefined && !p ? `<p class="muted">Variable credit: ${creditRange(c)}. It goes into a plan at ${c.cr} credits; change that on its card.</p>` : ''}</section>
+      <section class="dlg-sec"><h3>Prerequisites</h3>${preHtml}${adv}</section>
+      ${p ? `<section class="dlg-sec"><h3><label for="course-note">Notes</label></h3><textarea id="course-note" placeholder="For example: confirm placement at orientation">${esc(p.note || '')}</textarea></section>` : ''}
+    </div>
+    <div class="dlg-foot">${p ? `<button class="btn btn-danger" data-action="remove" data-code="${esc(code)}">Remove from plan</button>` : '<span></span>'}
+      <button class="btn" data-action="close-details">Done</button></div></div>`;
+}
+function openDetails(code, returnKey) {
+  ui.details = code;
+  ui.detailsReturn = returnKey || null;
+  renderDetails(code);
+  const dlg = $('#details');
+  if (!dlg.open) dlg.showModal();
+  const first = dlg.querySelector('#move-term, #add-term');
+  if (first) first.focus();
+}
+function closeDetails() { const dlg = $('#details'); if (dlg.open) dlg.close(); }
+$('#details').addEventListener('close', () => {
+  ui.details = null;
+  const key = ui.detailsReturn; ui.detailsReturn = null;
+  const el = key && document.querySelector(`[data-key="${CSS.escape(key)}"]`);
+  if (el) el.focus();
+});
+$('#details').addEventListener('input', e => {
+  if (e.target.id === 'course-note' && ui.details) { const p = placedOf(ui.details); if (p) p.note = e.target.value; }
+});
+$('#details').addEventListener('click', e => { if (e.target === e.currentTarget) closeDetails(); });
+
+// ----- Changes -----
+function snapshot() { return JSON.parse(JSON.stringify({ start: S.start, load: S.load, terms: S.terms, placed: S.placed })); }
+const MET = {
+  comm: 'Communication is fully planned ✅', qsr: 'Quantitative reasoning is planned ✅', H: 'Humanities is fully planned ✅',
+  SS: 'Social sciences are fully planned ✅', MS: 'Math & science is fully planned, lab included ✅', elect: 'The 12 qualifying elective credits are planned ✅',
+  W: 'Writing intensive is covered ✅', D: 'Diversity is covered ✅', G: 'Global studies is covered ✅', S: 'Sustainability is covered ✅', total: 'The plan reaches 90 credits ✅'
+};
+const DONE = {
+  comm: 'Communication is complete ✅', qsr: 'Quantitative reasoning is complete ✅', H: 'Humanities is complete ✅',
+  SS: 'Social sciences are complete ✅', MS: 'Math & science is complete ✅', elect: 'The 12 qualifying elective credits are complete ✅',
+  W: 'Writing intensive is complete ✅', D: 'Diversity is complete ✅', G: 'Global studies is complete ✅', S: 'Sustainability is complete ✅', total: '90 credits completed ✅'
+};
+function commit(label, mutate, opts = {}) {
+  const before = snapshot();
+  const prev = view ? view.rs : null;
+  const prevDone = view ? view.ers : null;
+  const prevAll = view ? REQ_ROWS.every(r => reqRowStatus(r.key).met) : false;
+  const prevAllDone = view ? REQ_ROWS.every(r => reqRowStatus(r.key).done) : false;
+  mutate();
+  undoStack.push({ snap: before, label });
+  if (undoStack.length > 80) undoStack.shift();
+  refresh(opts.focus);
+  const say = typeof opts.say === 'function' ? opts.say() : opts.say;
+  const newly = prev ? Object.keys(MET).filter(k => view.rs[k].met && !prev[k].met) : [];
+  const allNow = REQ_ROWS.every(r => reqRowStatus(r.key).met);
+  let celebrate = null;
+  const newlyDone = prevDone ? Object.keys(DONE).filter(k => view.ers[k].met && !prevDone[k].met) : [];
+  const allDone = REQ_ROWS.every(r => reqRowStatus(r.key).done);
+  if (allDone && !prevAllDone) celebrate = 'Every DTA requirement is complete ✅';
+  else if (allNow && !prevAll) celebrate = 'This plan meets every DTA requirement ✅' + (newlyDone.length ? ` ${plural(newlyDone.length, 'requirement')} already complete.` : '');
+  else if (newlyDone.length > 2) celebrate = `${newlyDone.length} more requirements are complete ✅`;
+  else if (newlyDone.length) celebrate = newlyDone.map(k => DONE[k]).join(' · ');
+  else if (newly.length > 2) celebrate = `${newly.length} more requirements are now planned ✅`;
+  else if (newly.length) celebrate = newly.map(k => MET[k]).join(' · ');
+  announce([say, celebrate].filter(Boolean).join(' '));
+  if (opts.toast) toast(opts.toast, { label: 'Undo', run: undo });
+  else if (celebrate) toast(celebrate);
+}
+function undo() {
+  const h = undoStack.pop();
+  if (!h) return;
+  S = h.snap;
+  refresh();
+  announce(`Undid: ${h.label}.`);
+}
+
+function addCourse(code, termId, extra = {}) {
+  if (placedOf(code)) return;
+  const t = S.terms[idxOf(termId)];
+  commit(`add ${code}`, () => { S.placed.push({ code, term: termId, note: '' }); ui.flash = code; },
+    { focus: extra.focus, say: () => `Added ${code} to ${termName(t)}. ${extra.why || countsPhrase(code)}` });
+}
+function moveCourse(code, termId, focus) {
+  const p = placedOf(code);
+  if (!p || p.term === termId) return;
+  const t = S.terms[idxOf(termId)];
+  commit(`move ${code}`, () => { p.term = termId; ui.flash = code; }, { focus: focus || 'tile:' + code, say: () => `Moved ${code} to ${termName(t)}.` });
+}
+function removeCourse(code) {
+  const p = placedOf(code);
+  if (!p) return;
+  const termId = p.term;
+  const t = S.terms[idxOf(termId)];
+  commit(`remove ${code}`, () => { S.placed = S.placed.filter(x => x.code !== code); }, {
+    focus: 'add:' + termId, say: `Removed ${code} from ${termName(t)}.`, toast: `Removed ${code}`
+  });
+}
+function applyFix(code) {
+  const line = statusLine(code);
+  if (!line || !line.fix) return;
+  const f = line.fix;
+  const p = placedOf(code);
+  if (f.kind === 'add') {
+    const target = S.terms[f.to];
+    commit(`add ${f.code}`, () => { S.placed.push({ code: f.code, term: target.id, note: '' }); ui.flash = f.code; },
+      { focus: 'tile:' + f.code, say: () => `Added ${f.code} to ${termName(target)} for ${code}. ${countsPhrase(f.code)}` });
+  } else {
+    commit(`move ${code}`, () => { ensureTerm(f.to); p.term = S.terms[f.to].id; ui.flash = code; },
+      { focus: 'tile:' + code, say: () => `Moved ${code} to ${termName(S.terms[f.to])}.` });
+  }
+}
+
+const SAMPLE = [
+  ['ENGL& 101', 'PSYC& 100', 'MATH& 146'],
+  ['ENGL 201', 'SOC& 101', 'GEOL& 101'],
+  ['CMST& 220', 'ART& 100', 'NUTR& 101'],
+  ['PHIL 140', 'SPAN& 121', 'CHEM& 121'],
+  ['SPAN& 122', 'PSYC& 200', 'ANTH& 206'],
+  ['ECON& 201', 'IDS 170', 'BUS& 101']
+];
+function loadSample() {
+  const replacing = S.placed.length > 0;
+  commit('fill the sample plan', () => {
+    ensureTerm(SAMPLE.length - 1);
+    S.placed = [];
+    SAMPLE.forEach((row, i) => row.forEach(code => S.placed.push({ code, term: S.terms[i].id, note: '', done: i < 2 })));
+  }, { say: 'Filled a sample plan: 18 courses over six quarters, the first two quarters marked completed. Open the Degree audit tab to see what is done and what is planned.', toast: replacing ? 'Sample plan loaded' : null });
+}
+function startOver() {
+  if (!S.placed.length && S.terms.length === 6 && S.start === 'Fall 2026' && S.load === 15) { announce('The plan is already blank.'); return; }
+  commit('start over', () => { const b = blankPlan(); S.start = b.start; S.load = b.load; S.terms = b.terms; S.placed = []; },
+    { say: 'Started over with a blank DTA plan.', toast: 'Plan cleared' });
+}
+
+// ----- Feedback -----
+function announce(msg) {
+  const el = $('#announcer');
+  el.textContent = '';
+  setTimeout(() => { el.textContent = msg; }, 60);
+}
+function toast(msg, action) {
+  const box = $('#toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<span>${esc(msg)}</span>${action ? `<button class="toast-act">${esc(action.label)}</button>` : ''}<button class="toast-x" aria-label="Dismiss">${ICONS.close}</button>`;
+  let timer;
+  const done = () => { clearTimeout(timer); el.remove(); };
+  const arm = () => { clearTimeout(timer); timer = setTimeout(done, 6000); };
+  el.addEventListener('mouseenter', () => clearTimeout(timer));
+  el.addEventListener('mouseleave', arm);
+  el.addEventListener('focusin', () => clearTimeout(timer));
+  el.addEventListener('focusout', arm);
+  if (action) el.querySelector('.toast-act').addEventListener('click', () => { done(); action.run(); });
+  el.querySelector('.toast-x').addEventListener('click', done);
+  box.appendChild(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  arm();
+}
+
+// ----- Degree audit view -----
+const PRINT_ENABLED = true;
+const AUDIT_GROUPS = [
+  ['Core requirements', ['comm', 'qsr']],
+  ['Distribution requirements', ['H', 'SS', 'MS']],
+  ['Electives', ['elect']],
+  ['Specialty requirements', ['W', 'D', 'G', 'S']],
+  ['Degree total', ['total']]
+];
+const AUDIT_TITLE = {
+  comm: 'Communication (CC/OC)', qsr: 'Quantitative/symbolic reasoning (QSR)', H: 'Humanities (H)', SS: 'Social/behavioral sciences (SS)',
+  MS: 'Math/science (MS)', elect: 'Electives', W: 'Writing intensive (w)', D: 'Diversity (d)', G: 'Global studies (g)', S: 'Sustainability (s)',
+  total: '90 college-level credits'
+};
+const SPEC_RULE = 'A course of 3 or more credits from the distribution or elective areas. Courses used for Communication or QSR do not count.';
+const AUDIT_RULE = {
+  comm: 'ENGL& 101, a second composition course (CC) and an oral communication course (OC).',
+  qsr: '5 credits from a course designated QSR. A course used here does not also count for Math/science.',
+  H: '15 credits from at least two subjects, no more than 10 from one. No more than 5 credits of performance or of 100-level world language count.',
+  SS: '15 credits from at least two subjects, no more than 10 from one.',
+  MS: '15 credits from at least two subjects, no more than 10 from one, including a lab course and 10 credits of physical or biological science.',
+  elect: 'At least 12 elective credits from H, SS, MS or LE courses. Credits beyond an area’s 15 count here. No more than 15 unlisted (UE) credits count.',
+  W: SPEC_RULE, D: SPEC_RULE, G: SPEC_RULE, S: SPEC_RULE,
+  total: '90 credits that count toward the degree, from courses numbered 100 or above.'
+};
+
+/** Everything the audit shows, built from the plan's audit and the audit of completed courses only. */
+function auditModel() {
+  const a = view.a, rs = view.rs, ers = view.ers;
+  const isDone = code => !!(placedOf(code) || {}).done;
+  const rowsFor = key => view.order.flatMap(p => usesOf(p.code).filter(u => u.key === key).map(u => ({ p, cr: u.cr, label: u.label, note: u.note })));
+  const split = rows => rows.reduce((s, r) => { s[isDone(r.p.code) ? 0 : 1] += r.cr; return s; }, [0, 0]);
+  const splitText = rows => { const [d, pl] = split(rows); return `${d} completed, ${pl} planned`; };
+  const items = [];
+  for (const [group, keys] of AUDIT_GROUPS) for (const key of keys) {
+    const state = ers[key].met ? 'done' : rs[key].met ? 'planned' : 'short';
+    let need = '', creditsLine = '', checks = [], rows = [];
+    if (key === 'comm') {
+      rows = rowsFor('comm');
+      const s = a.sel;
+      const missing = [!s.engl && 'ENGL& 101', !s.cc && 'a CC course', !s.oc && 'an OC course'].filter(Boolean);
+      need = missing.length ? 'Needs ' + missing.join(', ') : '';
+      creditsLine = `${a.commCr} credits: ${splitText(rows)}`;
+      checks = [
+        { ok: !!s.engl, text: s.engl ? 'ENGL& 101 English Composition I' : 'ENGL& 101 English Composition I is not in the plan' },
+        { ok: !!s.cc, text: s.cc ? `Second composition (CC): ${s.cc.c}` : 'A second composition (CC) course, such as ENGL 201' },
+        { ok: !!s.oc, text: s.oc ? `Oral communication (OC): ${s.oc.c}` : 'An oral communication (OC) course, such as CMST& 220' }
+      ];
+    } else if (key === 'qsr') {
+      rows = rowsFor('qsr');
+      need = `Needs ${Math.max(0, 5 - a.qCr)} QSR credits`;
+      creditsLine = `${a.qCr} of 5 credits: ${splitText(rows)}`;
+    } else if (AREAS.includes(key)) {
+      const ar = a.area[key];
+      rows = rowsFor(key);
+      const needs = [];
+      if (ar.total < 15) needs.push(`${15 - ar.total} credits`);
+      if (ar.disciplines < 2) needs.push('a second subject');
+      if (key === 'MS' && !ar.labs) needs.push('a lab course');
+      if (key === 'MS' && ar.pb < 10) needs.push(`${10 - ar.pb} physical/biological credits`);
+      need = 'Needs ' + needs.join(', ');
+      creditsLine = `${ar.total} of 15 credits: ${splitText(rows)}`;
+      const subjects = [...ar.perDisc.keys()];
+      checks.push({ ok: ar.disciplines >= 2, text: `Subjects: ${subjects.length ? subjects.join(', ') : 'none yet'} (at least 2)` });
+      if (key === 'H' && ar.lang > 0) checks.push({ ok: true, text: `${ar.lang} credits of 100-level world language (no more than 5 count)` });
+      if (key === 'MS') {
+        checks.push({ ok: ar.labs > 0, text: ar.labs ? 'Lab course included' : 'A lab course' });
+        checks.push({ ok: ar.pb >= 10, text: `${ar.pb} of 10 credits in physical or biological science` });
+      }
+    } else if (key === 'elect') {
+      rows = rowsFor('elect');
+      need = `Needs ${Math.max(0, 12 - a.floor)} qualifying credits`;
+      creditsLine = `${a.listed + a.unlisted} elective credits: ${splitText(rows)}`;
+      checks.push({ ok: a.floor >= 12, text: `${a.floor} of at least 12 credits from H, SS, MS or LE courses` });
+      checks.push({ ok: true, text: `${a.unlisted} of at most 15 unlisted (UE) credits` });
+      if (a.uncounted) checks.push({ ok: false, text: `${a.uncounted} unlisted credits are over the limit and do not count` });
+    } else if (SPEC.includes(key)) {
+      rows = a.spec[key].courses.map(c => ({ p: placedOf(c.c), cr: c.cr, label: SPEC_NAME[key] }));
+      need = 'Not planned yet';
+    } else {
+      need = `Needs ${Math.max(0, DEGREE_CREDITS - a.total)} credits`;
+      creditsLine = `${a.total} of 90 credits: ${view.earned.total} completed, ${Math.max(0, a.total - view.earned.total)} planned`;
+    }
+    items.push({ group, key, title: AUDIT_TITLE[key], rule: AUDIT_RULE[key], state, need, creditsLine, checks, rows });
+  }
+  const none = view.order.flatMap(p => usesOf(p.code).filter(u => u.kind === 'none').map(u => ({ p, cr: u.cr, label: u.label })));
+  return { items, none, doneCr: view.earned.total, total: a.total };
+}
+
+/** What the audit notes beside a course: why its credits moved, and any prerequisite to check. */
+function rowNotes(r) {
+  const c = CAT.get(r.p.code);
+  const notes = [];
+  if (r.label === 'Listed elective' || r.label.startsWith('Unlisted elective')) notes.push({ text: r.label + (r.note ? `, ${r.note}` : '') });
+  else if (r.note) notes.push({ text: r.note });
+  if (r.cr !== crOf(r.p) && !SPEC.some(s => SPEC_NAME[s] === r.label)) notes.push({ text: `${r.cr} of its ${crOf(r.p)} credits count here` });
+  const line = statusLine(r.p.code);
+  if (line && line.cls !== 'ok') notes.push({ text: line.text, warn: line.cls === 'blocked' });
+  if (c.x && !notes.length) notes.push({ text: 'No transfer attribute on file' });
+  return notes;
+}
+
+const auditDate = () => new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+function renderAudit() {
+  const m = auditModel();
+  const done = m.items.filter(i => i.state === 'done').length;
+  const planned = m.items.filter(i => i.state === 'planned').length;
+  const row = r => {
+    const c = CAT.get(r.p.code);
+    const status = r.p.done ? '<span class="s-done">✓ Completed</span>' : '<span class="s-planned">◷ Planned</span>';
+    const notes = rowNotes(r).map(n => `<span class="anote${n.warn ? ' warn' : ''}">${esc(n.text)}</span>`).join('') || '—';
+    return `<tr><td data-label="Status">${status}</td><td data-label="Course"><span class="code">${esc(c.c)}</span> ${esc(c.t)}</td>
+      <td data-label="Quarter">${esc(termName(S.terms[idxOf(r.p.term)]))}</td><td data-label="Credits" class="num">${r.cr}</td><td data-label="Notes">${notes}</td></tr>`;
+  };
+  const table = (caption, rows) => rows.length
+    ? `<div class="atable-wrap"><table class="atable"><caption class="sr-only">${esc(caption)}</caption><thead><tr><th scope="col">Status</th><th scope="col">Course</th><th scope="col">Quarter</th><th scope="col">Credits</th><th scope="col">Notes</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table></div>`
+    : '';
+  const item = it => {
+    const pill = it.state === 'done' ? `<span class="apill done">${ICONS.ok}Done</span>`
+      : it.state === 'planned' ? `<span class="apill planned">${ICONS.planned}Planned</span>`
+      : `<span class="apill short">${ICONS.review}${esc(it.need || 'Not yet')}</span>`;
+    const checks = it.checks.length ? `<ul class="achecks">${it.checks.map(ch => `<li class="${ch.ok ? '' : 'no'}"><span aria-hidden="true">${ch.ok ? '✓' : '○'}</span><span><span class="sr-only">${ch.ok ? 'Done: ' : 'Not yet: '}</span>${esc(ch.text)}</span></li>`).join('')}</ul>` : '';
+    const empty = !it.rows.length && it.key !== 'total' ? '<p class="audit-empty">No courses in the plan count here yet.</p>' : '';
+    return `<article class="areq" aria-labelledby="areq-${it.key}"><div class="areq-head"><h4 id="areq-${it.key}">${esc(it.title)}</h4>${pill}</div>
+      <p class="areq-rule">${esc(it.rule)}</p>${it.creditsLine ? `<p class="areq-cr">${esc(it.creditsLine)}</p>` : ''}${checks}${table(it.title + ': courses that count', it.rows)}${empty}</article>`;
+  };
+  let html = `<div class="audit-head"><div><span class="eyebrow">Degree audit · Demo</span><h2>Associate in Arts and Sciences (DTA)</h2>
+      <p class="audit-meta">${plural(S.placed.length, 'course')} in the plan, ${esc(termName(S.terms[0]))} to ${esc(termName(S.terms[S.terms.length - 1]))} · As of ${esc(auditDate())}</p></div>
+      <div class="audit-actions"><button class="btn" data-action="copy-audit" data-key="copy-audit">Copy audit</button>
+      ${PRINT_ENABLED ? '<button class="btn btn-primary" data-action="print-audit" data-key="print-audit">Print audit</button>' : ''}</div></div>
+    <div class="print-only print-lines"><span>Student:</span><span>Advisor:</span><span>Date:</span></div>
+    <div class="audit-copy" id="audit-copy" hidden><label for="audit-text">Copying is blocked here, so the audit text is selected below. Press Ctrl+C, or Cmd+C on a Mac.</label><textarea id="audit-text" readonly></textarea></div>
+    <ul class="audit-sum" aria-label="Audit summary">
+      <li><span class="v">${m.doneCr} / 90</span><span class="l">completed credits that count</span></li>
+      <li><span class="v">${m.total} / 90</span><span class="l">credits that count with planned courses</span></li>
+      <li><span class="v">${done} of ${m.items.length}</span><span class="l">requirements done</span></li>
+      <li><span class="v">${done + planned} of ${m.items.length}</span><span class="l">done or fully planned</span></li>
+    </ul>`;
+  if (!S.placed.length) html += '<p class="audit-empty">The plan is empty, so nothing counts yet. Add courses on the Plan by quarter tab, or fill the sample plan, then tick Completed on the courses the student has finished.</p>';
+  AUDIT_GROUPS.forEach(([group], gi) => {
+    html += `<section class="audit-group" aria-labelledby="ag-${gi}"><h3 id="ag-${gi}">${esc(group)}</h3>${m.items.filter(i => i.group === group).map(item).join('')}</section>`;
+  });
+  if (m.none.length) {
+    html += `<section class="audit-group" aria-labelledby="ag-none"><h3 id="ag-none">Credits that do not count</h3>${table('Credits that do not count', m.none)}</section>`;
+  }
+  html += '<p class="audit-empty">A demo: it checks the plan against the AAS-DTA rules in the 2025–26 catalog. It is not an official degree audit and does not check grades, GPA, residency or transfer credit.</p>';
+  $('#audit-panel').innerHTML = html;
+}
+
+/** The audit as plain text, for pasting into an email or a document. */
+function auditText() {
+  const m = auditModel();
+  const word = { done: 'Done', planned: 'Planned', short: 'Not yet' };
+  const out = ['Degree audit (demo): Associate in Arts and Sciences (DTA)', `As of ${auditDate()}`,
+    `Completed credits that count: ${m.doneCr} of 90. With planned courses: ${m.total} of 90.`, ''];
+  for (const [group] of AUDIT_GROUPS) {
+    out.push(group.toUpperCase());
+    for (const it of m.items.filter(i => i.group === group)) {
+      out.push(`${it.title}: ${word[it.state]}${it.state === 'short' && it.need ? ` (${it.need.toLowerCase()})` : ''}`);
+      if (it.creditsLine) out.push(`  ${it.creditsLine}`);
+      it.checks.forEach(ch => out.push(`  ${ch.ok ? '[x]' : '[ ]'} ${ch.text}`));
+      it.rows.forEach(r => {
+        const notes = rowNotes(r).map(n => n.text).join('; ');
+        out.push(`  ${r.p.done ? 'Completed' : 'Planned  '}  ${r.p.code}  ${CAT.get(r.p.code).t}, ${termName(S.terms[idxOf(r.p.term)])}, ${r.cr} cr${notes ? ` (${notes})` : ''}`);
+      });
+    }
+    out.push('');
+  }
+  if (m.none.length) {
+    out.push('CREDITS THAT DO NOT COUNT');
+    m.none.forEach(r => out.push(`  ${r.p.code}, ${r.cr} cr: ${r.label}`));
+    out.push('');
+  }
+  out.push('A demo audit, not an official degree audit.');
+  return out.join('\n');
+}
+
+function setTab(tab, focus) {
+  ui.tab = tab;
+  const audit = tab === 'audit';
+  $('#tab-plan').setAttribute('aria-selected', String(!audit));
+  $('#tab-plan').tabIndex = audit ? -1 : 0;
+  $('#tab-audit').setAttribute('aria-selected', String(audit));
+  $('#tab-audit').tabIndex = audit ? 0 : -1;
+  $('#terms').hidden = audit;
+  $('#audit-panel').hidden = !audit;
+  if (audit) renderAudit();
+  if (focus) $('#tab-' + tab).focus();
+}
+
+function copyAudit() {
+  const text = auditText();
+  const fallback = () => {
+    $('#audit-copy').hidden = false;
+    const box = $('#audit-text');
+    box.value = text;
+    box.focus();
+    box.select();
+    announce('Copying is blocked here. The audit text is selected; press Control C or Command C.');
+  };
+  try {
+    navigator.clipboard.writeText(text).then(() => { toast('Audit copied'); announce('Audit copied to the clipboard.'); }, fallback);
+  } catch (_) { fallback(); }
+}
+
+// ----- Catalog drawer -----
+const wide = window.matchMedia('(min-width: 1640px)');
+function openCatalog(termId, openerKey) {
+  if (termId) ui.target = termId;
+  renderCatalog();
+  if (!wide.matches) {
+    const cat = $('#catalog');
+    cat.classList.add('open');
+    cat.setAttribute('role', 'dialog');
+    cat.setAttribute('aria-modal', 'true');
+    $('#scrim').hidden = false;
+    ui.openerKey = openerKey || null;
+  }
+  setTimeout(() => $('#cat-search').focus(), wide.matches ? 0 : 60);
+}
+function closeCatalog() {
+  const cat = $('#catalog');
+  if (!cat.classList.contains('open')) return;
+  cat.classList.remove('open');
+  cat.removeAttribute('role');
+  cat.removeAttribute('aria-modal');
+  $('#scrim').hidden = true;
+  const el = ui.openerKey && document.querySelector(`[data-key="${CSS.escape(ui.openerKey)}"]`);
+  if (el) el.focus();
+  ui.openerKey = null;
+}
+wide.addEventListener('change', () => { if (wide.matches) closeCatalog(); });
+
+// ----- Events -----
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-action]');
+  if (!b) return;
+  const { action, code, term } = b.dataset;
+  switch (action) {
+    case 'undo': undo(); break;
+    case 'sample': loadSample(); break;
+    case 'reset': startOver(); break;
+    case 'browse': openCatalog(null, b.dataset.key); break;
+    case 'add-to': openCatalog(term, b.dataset.key); break;
+    case 'quick-add': addCourse(code, term, { focus: 'tile:' + code }); break;
+    case 'close-catalog': closeCatalog(); break;
+    case 'cat-add': addCourse(code, ui.target, { focus: 'cat:' + code }); break;
+    case 'target': ui.target = term; renderCatalog(); $('#cat-term').focus(); break;
+    case 'filter': ui.filter = b.dataset.filter; renderCatalog(); { const f = document.querySelector(`[data-key="filter:${CSS.escape(ui.filter)}"]`); if (f) f.focus(); } break;
+    case 'find': ui.filter = b.dataset.filter; ui.query = ''; $('#cat-search').value = ''; openCatalog(null, null); break;
+    case 'open': openDetails(code, b.dataset.key); break;
+    case 'info': openDetails(code, b.dataset.key); break;
+    case 'close-details': closeDetails(); break;
+    case 'move': { const to = $('#move-term').value; ui.detailsReturn = null; closeDetails(); moveCourse(code, to); break; }
+    case 'dlg-add': { const to = $('#add-term').value; ui.detailsReturn = null; closeDetails(); addCourse(code, to, { focus: wide.matches || $('#catalog').classList.contains('open') ? 'cat:' + code : 'tile:' + code }); break; }
+    case 'remove': ui.detailsReturn = null; closeDetails(); removeCourse(code); break;
+    case 'fix': applyFix(code); break;
+    case 'tab': setTab(b.dataset.tab, true); break;
+    case 'copy-audit': copyAudit(); break;
+    case 'print-audit': if (PRINT_ENABLED) { setTab('audit', false); window.print(); } break;
+    case 'collapse': {
+      const el = $('#' + b.dataset.target);
+      const show = el.hidden;
+      el.hidden = !show;
+      b.setAttribute('aria-expanded', String(show));
+      b.textContent = show ? 'Hide' : 'Show';
+      b.setAttribute('aria-label', `${show ? 'Hide' : 'Show'} DTA requirements`);
+      break;
+    }
+    case 'toggle-req': {
+      const body = $('#req-body-' + b.dataset.req);
+      const open = body.hidden;
+      body.hidden = !open;
+      b.setAttribute('aria-expanded', String(open));
+      if (open) body.innerHTML = reqBody(b.dataset.req);
+      break;
+    }
+    case 'goto-term': { const el = board.querySelector(`.term[data-term="${CSS.escape(term)}"] .btn-add`); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } break; }
+    case 'add-term': {
+      const t = nextTerm(S.terms[S.terms.length - 1], false);
+      commit('add a quarter', () => S.terms.push({ id: newTermId(), ...t }), { focus: 'add-term', say: `Added ${termName(t)} to the plan.` });
+      break;
+    }
+    case 'add-summer': {
+      const i = idxOf(term);
+      const sp = S.terms[i];
+      const id = newTermId();
+      commit('add a summer quarter', () => S.terms.splice(i + 1, 0, { id, season: 'Summer', year: sp.year }), { focus: 'add:' + id, say: `Added Summer ${sp.year}.` });
+      break;
+    }
+    case 'remove-term': {
+      const i = idxOf(term);
+      const t = S.terms[i];
+      const neighbour = S.terms[i + 1] || S.terms[i - 1];
+      commit(`remove ${termName(t)}`, () => { S.terms.splice(i, 1); if (ui.target === term) ui.target = null; },
+        { focus: 'add:' + neighbour.id, say: `Removed ${termName(t)}.`, toast: `Removed ${termName(t)}` });
+      break;
+    }
+  }
+});
+
+document.addEventListener('change', e => {
+  const flag = e.target.closest && e.target.closest('[data-change="done"], [data-change="status"]');
+  if (flag) {
+    const p = placedOf(flag.dataset.code);
+    const v = flag.type === 'checkbox' ? flag.checked : flag.value === 'done';
+    if (!p || !!p.done === v) return;
+    commit(`mark ${p.code} ${v ? 'completed' : 'planned'}`, () => { p.done = v; },
+      { focus: flag.dataset.key || null, say: () => `${p.code} marked ${v ? 'completed' : 'planned'}.` });
+    return;
+  }
+  const sel = e.target.closest && e.target.closest('[data-change="credits"]');
+  if (!sel) return;
+  const p = placedOf(sel.dataset.code);
+  const n = +sel.value;
+  if (!p || crOf(p) === n) return;
+  commit(`change ${p.code} to ${n} credits`, () => { p.cr = n; }, { focus: sel.dataset.key, say: () => `${p.code} now counts for ${n} credits. ${countsPhrase(p.code)}` });
+});
+$('#cat-term').addEventListener('change', e => { ui.target = e.target.value; renderCatalog(); });
+$('#cat-search').addEventListener('input', e => { ui.query = e.target.value; if (ui.query && ui.filter === 'needed') ui.filter = 'all'; renderCatalog(); });
+$('#load').addEventListener('change', e => {
+  const v = +e.target.value;
+  commit('change the credits a quarter', () => { S.load = v; }, { say: `Planning for ${v} credits a quarter.` });
+});
+$('#start-term').addEventListener('change', e => {
+  const v = e.target.value;
+  commit('change the start quarter', () => {
+    const fresh = sequence(v, S.terms.length);
+    S.terms.forEach((t, i) => { t.season = fresh[i].season; t.year = fresh[i].year; });
+    S.start = v;
+  }, { say: `The plan now starts in ${v}.` });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.classList && e.target.classList.contains('view-tab') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    e.preventDefault();
+    const next = e.key === 'Home' ? 'plan' : e.key === 'End' ? 'audit' : (ui.tab === 'plan' ? 'audit' : 'plan');
+    setTab(next, true);
+    return;
+  }
+  const typing = /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
+  const cat = $('#catalog');
+  if (cat.classList.contains('open')) {
+    if (e.key === 'Escape' && !$('#details').open) { e.preventDefault(); closeCatalog(); return; }
+    if (e.key === 'Tab' && !$('#details').open) {
+      const items = [...cat.querySelectorAll('button, select, input, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
+});
+
+// Drag and drop (mouse). Every drag has a button alternative: Add, the Move menu in the details, and the fix buttons.
+let dragCode = null;
+document.addEventListener('dragstart', e => {
+  const el = e.target.closest && e.target.closest('[draggable="true"][data-code]');
+  if (!el) return;
+  dragCode = el.dataset.code;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', dragCode); } catch (_) { }
+  el.classList.add('dragging');
+});
+document.addEventListener('dragend', e => {
+  dragCode = null;
+  document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.term.drop').forEach(el => el.classList.remove('drop'));
+});
+board.addEventListener('dragover', e => {
+  const t = e.target.closest('.term');
+  if (!t || !dragCode) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  board.querySelectorAll('.term.drop').forEach(el => { if (el !== t) el.classList.remove('drop'); });
+  t.classList.add('drop');
+});
+board.addEventListener('dragleave', e => {
+  const t = e.target.closest('.term');
+  if (t && !t.contains(e.relatedTarget)) t.classList.remove('drop');
+});
+board.addEventListener('drop', e => {
+  const t = e.target.closest('.term');
+  if (!t || !dragCode) return;
+  e.preventDefault();
+  const code = dragCode;
+  dragCode = null;
+  t.classList.remove('drop');
+  if (placedOf(code)) moveCourse(code, t.dataset.term, 'tile:' + code);
+  else addCourse(code, t.dataset.term, { focus: 'tile:' + code });
+});
+
+// ----- Start -----
+$('#legend').innerHTML = Object.entries(DESIGNATION).map(([k, v]) => `<span><span class="chip">${k}</span>${esc(v)}</span>`).join('');
+buildReqs();
+if (window.matchMedia('(max-width: 899px)').matches) document.querySelector('[data-action="collapse"]').click();
+refresh();
+</script>
+
+</body>
+</html>
